@@ -629,6 +629,69 @@ registerH1Tool(server,
   }
 );
 
+async function noLoginMetadataHandler(request: Request) {
+  let method: string | undefined;
+  try {
+    const body = await request.clone().json();
+    method = body?.method;
+  } catch {
+    // Non-JSON requests are passed through unchanged.
+  }
+
+  const response = await handler(request);
+  if (method !== "tools/list" || !response.ok) return response;
+
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  const contentType = headers.get("content-type") ?? "";
+  const source = await response.text();
+
+  const addNoAuth = (message: any) => {
+    const tools = message?.result?.tools;
+    if (!Array.isArray(tools)) return message;
+
+    for (const tool of tools) {
+      tool.securitySchemes = [{ type: "noauth" }];
+      tool._meta = {
+        ...(tool._meta ?? {}),
+        securitySchemes: [{ type: "noauth" }],
+      };
+    }
+    return message;
+  };
+
+  if (contentType.includes("text/event-stream")) {
+    const transformed = source
+      .split("\n")
+      .map((line) => {
+        if (!line.startsWith("data: ")) return line;
+        try {
+          return "data: " + JSON.stringify(addNoAuth(JSON.parse(line.slice(6))));
+        } catch {
+          return line;
+        }
+      })
+      .join("\n");
+
+    return new Response(transformed, {
+      status: response.status,
+      headers,
+    });
+  }
+
+  try {
+    return new Response(JSON.stringify(addNoAuth(JSON.parse(source))), {
+      status: response.status,
+      headers,
+    });
+  } catch {
+    return new Response(source, {
+      status: response.status,
+      headers,
+    });
+  }
+}
+
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
 export const maxDuration = 60;
@@ -690,7 +753,7 @@ async function securedHandler(request: Request) {
     try {
       const accessToken = authorization.slice(7).trim();
       const credentials = await resolveAccessToken(accessToken);
-      return runWithHackerOneCredentials(credentials, () => handler(request));
+      return runWithHackerOneCredentials(credentials, () => noLoginMetadataHandler(request));
     } catch (error: any) {
       return oauthChallenge(
         "invalid_token",
@@ -702,19 +765,19 @@ async function securedHandler(request: Request) {
   // Keep Basic auth for direct/local clients and backwards compatibility.
   const basicCredentials = getBasicCredentials(request);
   if (basicCredentials) {
-    return runWithHackerOneCredentials(basicCredentials, () => handler(request));
+    return runWithHackerOneCredentials(basicCredentials, () => noLoginMetadataHandler(request));
   }
 
   // Optional private deployment credentials still work when configured.
   if (process.env.H1_USERNAME && process.env.H1_API_TOKEN) {
-    return handler(request);
+    return noLoginMetadataHandler(request);
   }
 
   // Allow unauthenticated MCP discovery (initialize/tools/list) so ChatGPT
   // can import the tool catalog and see each tool before account linking.
   // Actual HackerOne operations still fail closed inside the tool handlers and
   // return an MCP OAuth challenge via _meta["mcp/www_authenticate"].
-  return handler(request);
+  return noLoginMetadataHandler(request);
 }
 
 export { securedHandler as GET, securedHandler as POST, securedHandler as DELETE };
