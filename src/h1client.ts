@@ -445,26 +445,29 @@ export async function listPrograms(pageSize = 50) {
 // ── Get program details ───────────────────────────────────────────
 export async function getProgramDetails(handle: string) {
   const data = await h1Fetch(`/hackers/programs/${handle}`);
-  const p = data.data;
-  const attrs = p.attributes;
+  const p = data?.data ?? data;
+  const attrs = p?.attributes ?? p ?? {};
 
   return {
-    id: p.id,
-    handle: attrs.handle,
-    name: attrs.name,
-    url: attrs.url,
-    offers_bounties: attrs.offers_bounties,
-    state: attrs.state,
-    submission_state: attrs.submission_state,
-    started_accepting_at: attrs.started_accepting_at,
-    policy: attrs.policy,
-    response_efficiency_percentage: attrs.response_efficiency_percentage,
-    average_time_to_first_program_response:
-      attrs.average_time_to_first_program_response,
-    average_time_to_report_resolved: attrs.average_time_to_report_resolved,
-    average_time_to_bounty_awarded: attrs.average_time_to_bounty_awarded,
-    allow_bounty_splitting: attrs.allow_bounty_splitting,
-    bookmarked: attrs.bookmarked,
+    id: p?.id ?? null,
+    handle: attrs.handle ?? handle,
+    name: attrs.name ?? null,
+    currency: attrs.currency ?? null,
+    policy: attrs.policy ?? null,
+    profile_picture: attrs.profile_picture ?? null,
+    submission_state: attrs.submission_state ?? null,
+    state: attrs.state ?? null,
+    started_accepting_at: attrs.started_accepting_at ?? null,
+    number_of_reports_for_user: attrs.number_of_reports_for_user ?? null,
+    number_of_valid_reports_for_user:
+      attrs.number_of_valid_reports_for_user ?? null,
+    bounty_earned_for_user: attrs.bounty_earned_for_user ?? null,
+    bookmarked: attrs.bookmarked ?? null,
+    allows_bounty_splitting: attrs.allows_bounty_splitting ?? null,
+    offers_bounties: attrs.offers_bounties ?? null,
+    open_scope: attrs.open_scope ?? null,
+    fast_payments: attrs.fast_payments ?? null,
+    gold_standard_safe_harbor: attrs.gold_standard_safe_harbor ?? null,
   };
 }
 
