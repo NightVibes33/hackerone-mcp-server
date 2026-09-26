@@ -723,10 +723,13 @@ export async function searchDisclosedReports(opts: {
   const lucenePhrase = (value: string) =>
     '"' + value.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
 
-  const clauses: string[] = [];
-  if (opts.program) clauses.push(`team:${lucenePhrase(opts.program)}`);
+  const clauses: string[] = ["disclosed:true"];
+  if (opts.program) {
+    const program = opts.program.replace(/[^A-Za-z0-9_.-]/g, "");
+    if (program) clauses.push(`team:${program}`);
+  }
   if (opts.query) clauses.push(lucenePhrase(opts.query));
-  if (clauses.length) params.queryString = clauses.join(" AND ");
+  params.queryString = clauses.join(" AND ");
 
   const data = await h1Fetch("/hackers/hacktivity", params, {
     skipCache: true,
