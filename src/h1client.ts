@@ -1,6 +1,6 @@
 import fetch, { type RequestInit } from "node-fetch";
 import { type Readable } from "stream";
-import { getHackerOneCredentials } from "./request-auth.js";
+import { getHackerOneCredentials } from "./request-auth";
 
 const H1_BASE = "https://api.hackerone.com/v1";
 
