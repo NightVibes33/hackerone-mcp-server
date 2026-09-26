@@ -1,5 +1,6 @@
 import fetch, { type RequestInit } from "node-fetch";
 import { type Readable } from "stream";
+import { getHackerOneCredentials } from "./request-auth.js";
 
 const H1_BASE = "https://api.hackerone.com/v1";
 
@@ -33,8 +34,9 @@ function cacheInvalidatePrefix(prefix: string): void {
 
 // ── Auth ──────────────────────────────────────────────────────────
 function getAuth(): string {
-  const username = process.env.H1_USERNAME;
-  const token = process.env.H1_API_TOKEN;
+  const requestCredentials = getHackerOneCredentials();
+  const username = requestCredentials?.username ?? process.env.H1_USERNAME;
+  const token = requestCredentials?.token ?? process.env.H1_API_TOKEN;
   if (!username || !token) {
     throw new Error(
       "Missing H1_USERNAME or H1_API_TOKEN environment variables"
