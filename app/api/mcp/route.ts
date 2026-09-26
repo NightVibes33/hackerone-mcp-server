@@ -646,23 +646,32 @@ function getCredentials(request: Request) {
 
 async function securedHandler(request: Request) {
   const credentials = getCredentials(request);
-  if (!credentials) {
-    return new Response(
-      JSON.stringify({
-        error: "HackerOne credentials required",
-        hint: "Use HTTP Basic auth with your HackerOne username and API token.",
-      }),
-      {
-        status: 401,
-        headers: {
-          "content-type": "application/json",
-          "www-authenticate": 'Basic realm="HackerOne MCP"',
-        },
-      }
-    );
+
+  // Prefer per-request credentials when supplied. For a private Vercel
+  // deployment, H1_USERNAME + H1_API_TOKEN may instead be configured as
+  // encrypted project environment variables.
+  if (credentials) {
+    return runWithHackerOneCredentials(credentials, () => handler(request));
   }
 
-  return runWithHackerOneCredentials(credentials, () => handler(request));
+  if (process.env.H1_USERNAME && process.env.H1_API_TOKEN) {
+    return handler(request);
+  }
+
+  return new Response(
+    JSON.stringify({
+      error: "HackerOne credentials required",
+      hint:
+        "Configure H1_USERNAME and H1_API_TOKEN on the server, or use HTTP Basic auth with your HackerOne username and API token.",
+    }),
+    {
+      status: 401,
+      headers: {
+        "content-type": "application/json",
+        "www-authenticate": 'Basic realm="HackerOne MCP"',
+      },
+    }
+  );
 }
 
 export { securedHandler as GET, securedHandler as POST, securedHandler as DELETE };
