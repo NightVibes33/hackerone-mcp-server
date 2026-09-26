@@ -632,7 +632,7 @@ registerH1Tool(server,
 async function noLoginMetadataHandler(request: Request) {
   let method: string | undefined;
   try {
-    const body = await request.clone().json();
+    const body = (await request.clone().json()) as any;
     method = body?.method;
   } catch {
     // Non-JSON requests are passed through unchanged.
