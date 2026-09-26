@@ -12,6 +12,7 @@ import {
 } from "../../../src/oauth";
 
 export const runtime = "nodejs";
+export const preferredRegion = "iad1";
 
 function oauthError(error: string, description: string, status = 400) {
   return Response.json(

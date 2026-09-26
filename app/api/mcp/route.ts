@@ -628,6 +628,7 @@ server.tool(
 );
 
 export const runtime = "nodejs";
+export const preferredRegion = "iad1";
 export const maxDuration = 60;
 
 function getBasicCredentials(request: Request) {

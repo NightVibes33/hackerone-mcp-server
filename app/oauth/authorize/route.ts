@@ -9,6 +9,7 @@ import {
 } from "../../../src/oauth";
 
 export const runtime = "nodejs";
+export const preferredRegion = "iad1";
 export const maxDuration = 30;
 
 function esc(value: string) {
