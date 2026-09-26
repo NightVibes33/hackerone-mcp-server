@@ -24,6 +24,43 @@ import {
   PROTECTED_RESOURCE_METADATA_URL,
 } from "../../../src/oauth";
 
+function toolError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  const authRequired = message.includes(
+    "Missing H1_USERNAME or H1_API_TOKEN environment variables"
+  );
+
+  if (authRequired) {
+    const challenge =
+      'Bearer resource_metadata="' +
+      PROTECTED_RESOURCE_METADATA_URL +
+      '", scope="hackerone", error="invalid_token", error_description="Connect your HackerOne account to continue."';
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: "Authentication required: connect your HackerOne account to continue.",
+        },
+      ],
+      _meta: {
+        "mcp/www_authenticate": [challenge],
+      },
+      isError: true,
+    };
+  }
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: `Error: ${message}`,
+      },
+    ],
+    isError: true,
+  };
+}
+
 const handler = createMcpHandler(
   (server) => {
 
@@ -85,10 +122,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -112,10 +146,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -139,10 +170,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -172,10 +200,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -204,10 +229,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -233,10 +255,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -299,10 +318,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -334,10 +350,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -369,10 +382,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -401,10 +411,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -426,10 +433,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -451,10 +455,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -506,10 +507,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -538,10 +536,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -569,10 +564,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -609,10 +601,7 @@ server.tool(
         ],
       };
     } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
+      return toolError(err);
     }
   }
 );
@@ -708,7 +697,11 @@ async function securedHandler(request: Request) {
     return handler(request);
   }
 
-  return oauthChallenge();
+  // Allow unauthenticated MCP discovery (initialize/tools/list) so ChatGPT
+  // can import the tool catalog and see each tool before account linking.
+  // Actual HackerOne operations still fail closed inside the tool handlers and
+  // return an MCP OAuth challenge via _meta["mcp/www_authenticate"].
+  return handler(request);
 }
 
 export { securedHandler as GET, securedHandler as POST, securedHandler as DELETE };
