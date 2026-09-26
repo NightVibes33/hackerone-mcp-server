@@ -713,42 +713,37 @@ export async function searchDisclosedReports(opts: {
   query?: string;
   page_size?: number;
 }) {
-  // The hacktivity endpoint for disclosed reports
   const params: Record<string, string> = {
     "page[size]": String(opts.page_size ?? 25),
   };
-  if (opts.program) {
-    params["filter[team_handle][]"] = opts.program;
-  }
+
+  const lucenePhrase = (value: string) =>
+    '"' + value.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+
+  const clauses: string[] = [];
+  if (opts.program) clauses.push(`team:${lucenePhrase(opts.program)}`);
+  if (opts.query) clauses.push(lucenePhrase(opts.query));
+  if (clauses.length) params.queryString = clauses.join(" AND ");
 
   const data = await h1Fetch("/hackers/hacktivity", params, {
     skipCache: true,
   });
-  let reports = (data.data ?? []).map((r: any) => ({
+
+  return (data.data ?? []).map((r: any) => ({
     id: r.id,
-    title: r.attributes?.title ?? r.attributes?.raw_title,
-    severity: r.attributes?.severity_rating,
-    disclosed_at: r.attributes?.disclosed_at,
-    total_awarded_amount: r.attributes?.total_awarded_amount,
-    upvotes: r.attributes?.vote_count ?? r.attributes?.upvotes,
+    title: r.attributes?.title ?? null,
+    severity: r.attributes?.severity_rating ?? null,
+    disclosed_at: r.attributes?.disclosed_at ?? null,
+    total_awarded_amount: r.attributes?.total_awarded_amount ?? null,
+    votes: r.attributes?.votes ?? null,
     url: r.attributes?.url ?? `https://hackerone.com/reports/${r.id}`,
     reporter:
       r.relationships?.reporter?.data?.attributes?.username ?? null,
     program:
-      r.relationships?.team?.data?.attributes?.handle ??
-      r.relationships?.program?.data?.attributes?.handle ??
-      null,
-    weakness: r.relationships?.weakness?.data?.attributes?.name ?? null,
+      r.relationships?.program?.data?.attributes?.handle ?? null,
+    weakness: r.attributes?.cwe ?? null,
+    summary:
+      r.relationships?.report_generated_content?.data?.attributes
+        ?.hacktivity_summary ?? null,
   }));
-
-  if (opts.query) {
-    const q = opts.query.toLowerCase();
-    reports = reports.filter(
-      (r: any) =>
-        r.title?.toLowerCase().includes(q) ||
-        r.weakness?.toLowerCase().includes(q)
-    );
-  }
-
-  return reports;
 }
