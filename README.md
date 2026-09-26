@@ -4,6 +4,20 @@
 
 MCP server that gives Claude Code (or any MCP client) full access to your HackerOne reports, programs, earnings, and scope data via the HackerOne API — including submitting reports and responding to triage.
 
+
+## Deploy to Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FNightVibes33%2Fhackerone-mcp-server&project-name=hackerone-mcp-server&repository-name=hackerone-mcp-server)
+
+The remote Streamable HTTP MCP endpoint is:
+
+```text
+https://YOUR-PROJECT.vercel.app/api/mcp
+```
+
+No HackerOne credentials are stored in the deployment. Each MCP request authenticates with HTTP Basic auth using your HackerOne username as the username and your HackerOne API token as the password. Missing credentials return HTTP 401.
+
+
 ## Setup
 
 ### 1. Get your HackerOne API token
