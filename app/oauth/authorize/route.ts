@@ -1,3 +1,4 @@
+import { setDefaultHackerOneCredentials } from "../../../src/request-auth";
 import {
   OAUTH_ISSUER,
   OAUTH_RESOURCE,
@@ -112,6 +113,16 @@ export async function POST(request: Request) {
 
   try {
     const verified = await verifyHackerOneCredentials(username, token);
+
+    if (verified.username !== "zyn33") {
+      return page(fields, "This private HackerOne server is bound to a different account.");
+    }
+
+    await setDefaultHackerOneCredentials({
+      username: verified.username,
+      token,
+    });
+
     const code = await createAuthorizationCode({
       username: verified.username,
       token,
