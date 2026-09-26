@@ -716,40 +716,70 @@ export async function searchDisclosedReports(opts: {
   query?: string;
   page_size?: number;
 }) {
-  const params: Record<string, string> = {
-    "page[size]": String(opts.page_size ?? 25),
-  };
+  const wanted = Math.max(1, Math.min(opts.page_size ?? 25, 100));
+  const program = opts.program?.toLowerCase();
+  const query = opts.query?.toLowerCase();
+  const matches: any[] = [];
 
-  const lucenePhrase = (value: string) =>
-    '"' + value.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+  for (let page = 1; page <= 20 && matches.length < wanted; page++) {
+    const data = await h1Fetch(
+      "/hackers/hacktivity",
+      {
+        "page[size]": "100",
+        "page[number]": String(page),
+        sort: "-disclosed_at",
+      },
+      { skipCache: true }
+    );
 
-  const clauses: string[] = ["disclosed:true"];
-  if (opts.program) {
-    const program = opts.program.replace(/[^A-Za-z0-9_.-]/g, "");
-    if (program) clauses.push(`team:${program}`);
+    const items = data.data ?? [];
+    if (!items.length) break;
+
+    for (const r of items) {
+      const attrs = r.attributes ?? {};
+      const reporter = r.relationships?.reporter?.data?.attributes;
+      const prog = r.relationships?.program?.data?.attributes;
+      const summary =
+        r.relationships?.report_generated_content?.data?.attributes
+          ?.hacktivity_summary ?? null;
+
+      if (!attrs.disclosed && !attrs.disclosed_at) continue;
+      if (program && prog?.handle?.toLowerCase() !== program) continue;
+
+      if (query) {
+        const haystack = [
+          attrs.title,
+          attrs.cwe,
+          summary,
+          reporter?.username,
+          prog?.handle,
+          prog?.name,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .toLowerCase();
+        if (!haystack.includes(query)) continue;
+      }
+
+      matches.push({
+        id: r.id,
+        title: attrs.title ?? null,
+        severity: attrs.severity_rating ?? null,
+        disclosed_at: attrs.disclosed_at ?? null,
+        total_awarded_amount: attrs.total_awarded_amount ?? null,
+        votes: attrs.votes ?? null,
+        url: attrs.url ?? `https://hackerone.com/reports/${r.id}`,
+        reporter: reporter?.username ?? null,
+        program: prog?.handle ?? null,
+        weakness: attrs.cwe ?? null,
+        summary,
+      });
+
+      if (matches.length >= wanted) break;
+    }
+
+    if (items.length < 100) break;
   }
-  if (opts.query) clauses.push(lucenePhrase(opts.query));
-  params.queryString = clauses.join(" AND ");
 
-  const data = await h1Fetch("/hackers/hacktivity", params, {
-    skipCache: true,
-  });
-
-  return (data.data ?? []).map((r: any) => ({
-    id: r.id,
-    title: r.attributes?.title ?? null,
-    severity: r.attributes?.severity_rating ?? null,
-    disclosed_at: r.attributes?.disclosed_at ?? null,
-    total_awarded_amount: r.attributes?.total_awarded_amount ?? null,
-    votes: r.attributes?.votes ?? null,
-    url: r.attributes?.url ?? `https://hackerone.com/reports/${r.id}`,
-    reporter:
-      r.relationships?.reporter?.data?.attributes?.username ?? null,
-    program:
-      r.relationships?.program?.data?.attributes?.handle ?? null,
-    weakness: r.attributes?.cwe ?? null,
-    summary:
-      r.relationships?.report_generated_content?.data?.attributes
-        ?.hacktivity_summary ?? null,
-  }));
+  return matches;
 }
