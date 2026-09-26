@@ -1,4 +1,4 @@
-import { protectedResourceMetadata } from "../../../../src/oauth";
+import { protectedResourceMetadata } from "../../../../../src/oauth";
 
 export const runtime = "nodejs";
 

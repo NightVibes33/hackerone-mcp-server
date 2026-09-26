@@ -1,4 +1,4 @@
-import { authorizationServerMetadata } from "../../src/oauth";
+import { authorizationServerMetadata } from "../../../src/oauth";
 
 export const runtime = "nodejs";
 
