@@ -1,9 +1,6 @@
 import fetch, { type RequestInit } from "node-fetch";
 import { type Readable } from "stream";
-import {
-  getHackerOneCredentials,
-  getDefaultHackerOneCredentials,
-} from "./request-auth";
+import { getHackerOneCredentials } from "./request-auth";
 
 const H1_BASE = "https://api.hackerone.com/v1";
 
@@ -36,30 +33,16 @@ function cacheInvalidatePrefix(prefix: string): void {
 }
 
 // ── Auth ──────────────────────────────────────────────────────────
-async function getAuth(): Promise<string> {
+function getAuth(): string {
   const requestCredentials = getHackerOneCredentials();
-  const environmentCredentials =
-    process.env.H1_USERNAME && process.env.H1_API_TOKEN
-      ? {
-          username: process.env.H1_USERNAME,
-          token: process.env.H1_API_TOKEN,
-        }
-      : undefined;
-
-  const credentials =
-    requestCredentials ??
-    environmentCredentials ??
-    (await getDefaultHackerOneCredentials());
-
-  if (!credentials?.username || !credentials?.token) {
+  const username = requestCredentials?.username ?? process.env.H1_USERNAME;
+  const token = requestCredentials?.token ?? process.env.H1_API_TOKEN;
+  if (!username || !token) {
     throw new Error(
       "Missing H1_USERNAME or H1_API_TOKEN environment variables"
     );
   }
-
-  return Buffer.from(
-    `${credentials.username}:${credentials.token}`
-  ).toString("base64");
+  return Buffer.from(`${username}:${token}`).toString("base64");
 }
 
 // ── HTTP helpers with retry + backoff ─────────────────────────────
@@ -89,7 +72,7 @@ async function h1Fetch(
     try {
       const res = await fetch(url.toString(), {
         headers: {
-          Authorization: `Basic ${await getAuth()}`,
+          Authorization: `Basic ${getAuth()}`,
           Accept: "application/json",
         },
       });
@@ -131,7 +114,7 @@ async function h1Post(
       const res = await fetch(url, {
         method: "POST",
         headers: {
-          Authorization: `Basic ${await getAuth()}`,
+          Authorization: `Basic ${getAuth()}`,
           Accept: "application/json",
           "Content-Type": contentType,
         },
