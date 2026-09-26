@@ -45,7 +45,7 @@ function page(fields: Record<string, string>, error?: string) {
       '<label for="username">HackerOne username</label><input id="username" name="username" autocomplete="username" required placeholder="zyn33">' +
       '<label for="api_token">HackerOne API token</label><input id="api_token" name="api_token" type="password" autocomplete="off" required>' +
       '<button type="submit">Verify &amp; authorize ChatGPT</button>' +
-      '<p class="tiny">Your HackerOne API token is verified directly with HackerOne and encrypted inside the OAuth tokens issued to ChatGPT. It is not written to GitHub.</p>' +
+      '<p class="tiny">Your HackerOne API token is verified directly with HackerOne and kept server-side in Vercel Runtime Cache. ChatGPT receives only random opaque OAuth tokens. It is not written to GitHub.</p>' +
       "</form></main></body></html>",
     {
       status: error ? 400 : 200,
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
 
   try {
     const verified = await verifyHackerOneCredentials(username, token);
-    const code = createAuthorizationCode({
+    const code = await createAuthorizationCode({
       username: verified.username,
       token,
       clientId: fields.client_id,

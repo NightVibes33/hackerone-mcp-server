@@ -34,7 +34,7 @@ export default function Home() {
         <p style={{ lineHeight: 1.7, color: "#bdbdbd" }}>
           Authentication: OAuth 2.1 authorization-code flow with PKCE. During
           account linking, HackerOne credentials are verified directly with
-          HackerOne and are not committed to this repository.
+          HackerOne, kept server-side in Runtime Cache, and are never committed to this repository.
         </p>
         <p style={{ lineHeight: 1.7, color: "#777" }}>
           OAuth metadata:{" "}

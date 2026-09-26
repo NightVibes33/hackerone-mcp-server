@@ -1,10 +1,5 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-  timingSafeEqual,
-} from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { getCache } from "@vercel/functions";
 
 export const OAUTH_ISSUER =
   process.env.OAUTH_ISSUER || "https://hackeronemcpserver.vercel.app";
@@ -15,114 +10,84 @@ export const PROTECTED_RESOURCE_METADATA_URL =
 export const OAUTH_SCOPE = "hackerone";
 export const OFFLINE_SCOPE = "offline_access";
 
+const AUTH_CODE_TTL = 5 * 60;
+const ACCESS_TOKEN_TTL = 60 * 60;
+const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60;
+
 type HackerOneCredentials = {
   username: string;
   token: string;
 };
 
-type AuthCodePayload = HackerOneCredentials & {
-  typ: "code";
-  exp: number;
+export type OAuthGrant = HackerOneCredentials & {
   clientId: string;
+  resource: string;
+  scope: string;
+};
+
+export type AuthorizationCodeRecord = OAuthGrant & {
   redirectUri: string;
-  resource: string;
   codeChallenge: string;
-  scope: string;
 };
 
-type AccessPayload = HackerOneCredentials & {
-  typ: "access";
-  exp: number;
-  clientId: string;
-  resource: string;
-  scope: string;
-};
-
-type RefreshPayload = HackerOneCredentials & {
-  typ: "refresh";
-  exp: number;
-  clientId: string;
-  resource: string;
-  scope: string;
-};
-
-function b64url(data: Buffer) {
-  return data.toString("base64url");
-}
-
-function fromB64url(value: string) {
-  return Buffer.from(value, "base64url");
-}
-
-function key() {
-  const secret = process.env.OAUTH_SECRET;
-  if (!secret) {
-    throw new Error(
-      "OAuth is not configured: set OAUTH_SECRET to a long random secret in Vercel."
-    );
-  }
-  return createHash("sha256").update(secret, "utf8").digest();
-}
-
-function seal(payload: Record<string, unknown>) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key(), iv);
-  const plaintext = Buffer.from(JSON.stringify(payload), "utf8");
-  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return ["v1", b64url(iv), b64url(ciphertext), b64url(tag)].join(".");
-}
-
-function open<T extends { typ: string; exp: number }>(
-  token: string,
-  expectedType: T["typ"]
-): T {
-  const parts = token.split(".");
-  if (parts.length !== 4 || parts[0] !== "v1") {
-    throw new Error("Malformed OAuth token.");
-  }
-
-  const decipher = createDecipheriv("aes-256-gcm", key(), fromB64url(parts[1]));
-  decipher.setAuthTag(fromB64url(parts[3]));
-  const plaintext = Buffer.concat([
-    decipher.update(fromB64url(parts[2])),
-    decipher.final(),
-  ]);
-  const payload = JSON.parse(plaintext.toString("utf8")) as T;
-
-  if (payload.typ !== expectedType) throw new Error("OAuth token type mismatch.");
-  if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) {
-    throw new Error("OAuth token expired.");
-  }
-  return payload;
-}
-
-function expiresIn(seconds: number) {
-  return Math.floor(Date.now() / 1000) + seconds;
-}
-
-export function createAuthorizationCode(input: Omit<AuthCodePayload, "typ" | "exp">) {
-  return seal({
-    ...input,
-    typ: "code",
-    exp: expiresIn(5 * 60),
+function oauthCache() {
+  return getCache({
+    namespace: "h1-mcp-oauth",
+    namespaceSeparator: ":",
   });
 }
 
-export function decodeAuthorizationCode(code: string) {
-  return open<AuthCodePayload>(code, "code");
+function tokenKey(kind: "code" | "access" | "refresh", token: string) {
+  const digest = createHash("sha256").update(token, "utf8").digest("hex");
+  return kind + ":" + digest;
 }
 
-export function createAccessToken(input: Omit<AccessPayload, "typ" | "exp">) {
-  return seal({
-    ...input,
-    typ: "access",
-    exp: expiresIn(60 * 60),
+function opaqueToken(prefix: string) {
+  return prefix + "_" + randomBytes(32).toString("base64url");
+}
+
+async function putRecord(
+  kind: "code" | "access" | "refresh",
+  ttl: number,
+  value: object
+) {
+  const token = opaqueToken(kind);
+  await oauthCache().set(tokenKey(kind, token), value, {
+    ttl,
+    tags: ["h1-mcp-oauth"],
+    name: "hackerone-mcp-oauth-" + kind,
   });
+  return token;
 }
 
-export function decodeAccessToken(token: string): HackerOneCredentials {
-  const payload = open<AccessPayload>(token, "access");
+async function getRecord<T>(
+  kind: "code" | "access" | "refresh",
+  token: string
+): Promise<T> {
+  if (!token || token.length < 20) throw new Error("Malformed OAuth token.");
+  const value = (await oauthCache().get(tokenKey(kind, token))) as T | undefined;
+  if (!value) throw new Error("OAuth token is invalid, expired, or no longer active.");
+  return value;
+}
+
+export async function createAuthorizationCode(input: AuthorizationCodeRecord) {
+  return putRecord("code", AUTH_CODE_TTL, input);
+}
+
+export async function readAuthorizationCode(code: string) {
+  return getRecord<AuthorizationCodeRecord>("code", code);
+}
+
+export async function consumeAuthorizationCode(code: string) {
+  await oauthCache().delete(tokenKey("code", code));
+}
+
+export async function createAccessToken(input: OAuthGrant) {
+  return putRecord("access", ACCESS_TOKEN_TTL, input);
+}
+
+export async function resolveAccessToken(token: string): Promise<HackerOneCredentials> {
+  const payload = await getRecord<OAuthGrant>("access", token);
   if (payload.resource !== OAUTH_RESOURCE) {
     throw new Error("OAuth token audience does not match this MCP server.");
   }
@@ -132,16 +97,16 @@ export function decodeAccessToken(token: string): HackerOneCredentials {
   return { username: payload.username, token: payload.token };
 }
 
-export function createRefreshToken(input: Omit<RefreshPayload, "typ" | "exp">) {
-  return seal({
-    ...input,
-    typ: "refresh",
-    exp: expiresIn(30 * 24 * 60 * 60),
-  });
+export async function createRefreshToken(input: OAuthGrant) {
+  return putRecord("refresh", REFRESH_TOKEN_TTL, input);
 }
 
-export function decodeRefreshToken(token: string) {
-  return open<RefreshPayload>(token, "refresh");
+export async function readRefreshToken(token: string) {
+  return getRecord<OAuthGrant>("refresh", token);
+}
+
+export async function consumeRefreshToken(token: string) {
+  await oauthCache().delete(tokenKey("refresh", token));
 }
 
 export function verifyPkce(verifier: string, challenge: string) {

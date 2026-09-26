@@ -19,7 +19,7 @@ import {
 } from "../../../src/h1client";
 import { runWithHackerOneCredentials } from "../../../src/request-auth";
 import {
-  decodeAccessToken,
+  resolveAccessToken,
   OAUTH_RESOURCE,
   PROTECTED_RESOURCE_METADATA_URL,
 } from "../../../src/oauth";
@@ -686,7 +686,7 @@ async function securedHandler(request: Request) {
   if (authorization.toLowerCase().startsWith("bearer ")) {
     try {
       const accessToken = authorization.slice(7).trim();
-      const credentials = decodeAccessToken(accessToken);
+      const credentials = await resolveAccessToken(accessToken);
       return runWithHackerOneCredentials(credentials, () => handler(request));
     } catch (error: any) {
       return oauthChallenge(

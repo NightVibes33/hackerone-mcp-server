@@ -1,11 +1,13 @@
 import {
   OAUTH_RESOURCE,
+  consumeAuthorizationCode,
+  consumeRefreshToken,
   createAccessToken,
   createRefreshToken,
-  decodeAuthorizationCode,
-  decodeRefreshToken,
   isAllowedClientId,
   isAllowedRedirectUri,
+  readAuthorizationCode,
+  readRefreshToken,
   verifyPkce,
 } from "../../../src/oauth";
 
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      const payload = decodeAuthorizationCode(code);
+      const payload = await readAuthorizationCode(code);
       if (payload.clientId !== clientId) {
         return oauthError("invalid_grant", "client_id does not match the authorization code.");
       }
@@ -61,6 +63,8 @@ export async function POST(request: Request) {
         return oauthError("invalid_grant", "PKCE verification failed.");
       }
 
+      await consumeAuthorizationCode(code);
+
       const common = {
         username: payload.username,
         token: payload.token,
@@ -69,12 +73,17 @@ export async function POST(request: Request) {
         scope: payload.scope,
       };
 
+      const [accessToken, refreshToken] = await Promise.all([
+        createAccessToken(common),
+        createRefreshToken(common),
+      ]);
+
       return Response.json(
         {
-          access_token: createAccessToken(common),
+          access_token: accessToken,
           token_type: "Bearer",
           expires_in: 3600,
-          refresh_token: createRefreshToken(common),
+          refresh_token: refreshToken,
           scope: payload.scope,
         },
         {
@@ -96,7 +105,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      const payload = decodeRefreshToken(refreshToken);
+      const payload = await readRefreshToken(refreshToken);
       if (payload.clientId !== clientId) {
         return oauthError("invalid_grant", "client_id does not match the refresh token.");
       }
@@ -104,20 +113,19 @@ export async function POST(request: Request) {
         return oauthError("invalid_target", "resource does not match the protected MCP resource.");
       }
 
-      const common = {
-        username: payload.username,
-        token: payload.token,
-        clientId: payload.clientId,
-        resource: payload.resource,
-        scope: payload.scope,
-      };
+      await consumeRefreshToken(refreshToken);
+
+      const [accessToken, nextRefreshToken] = await Promise.all([
+        createAccessToken(payload),
+        createRefreshToken(payload),
+      ]);
 
       return Response.json(
         {
-          access_token: createAccessToken(common),
+          access_token: accessToken,
           token_type: "Bearer",
           expires_in: 3600,
-          refresh_token: createRefreshToken(common),
+          refresh_token: nextRefreshToken,
           scope: payload.scope,
         },
         {
