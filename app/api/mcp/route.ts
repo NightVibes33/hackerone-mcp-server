@@ -61,29 +61,11 @@ function toolError(err: unknown) {
   };
 }
 
-function registerH1Tool(
-  server: any,
-  name: string,
-  description: string,
-  inputSchema: any,
-  handler: any
-) {
-  return server.registerTool(
-    name,
-    {
-      description,
-      inputSchema,
-      securitySchemes: [{ type: "oauth2", scopes: ["hackerone"] }],
-    },
-    handler
-  );
-}
-
 const handler = createMcpHandler(
   (server) => {
 
 // ── Tool: search_reports ───────────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "search_reports",
   "Search and list your HackerOne reports. Filter by keyword, program, severity, or state. Great for finding past reports to reference when drafting new ones.",
   {
@@ -146,7 +128,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_report ───────────────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_report",
   "Get the full details of a specific HackerOne report by ID. Returns title, vulnerability details, impact, severity, full CVSS vector/score, bounty amounts, attachments, timestamps, and program info.",
   {
@@ -170,7 +152,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_report_with_conversation ─────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_report_with_conversation",
   "Get a report with its full triage conversation. Useful for understanding what questions triage asked, how you responded, and what led to resolution. Great for learning what works.",
   {
@@ -194,7 +176,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_report_activities ────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_report_activities",
   "Get the activity timeline of a report: comments, state changes, bounty awards, and triage responses.",
   {
@@ -224,7 +206,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: list_programs ────────────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "list_programs",
   "List bug bounty programs you have access to on HackerOne. Auto-paginates to return all programs.",
   {
@@ -253,7 +235,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_program_details ──────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_program_details",
   "Get detailed info about a single program: policy, response times, metrics, bounty splitting, and submission state.",
   {
@@ -279,7 +261,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: analyze_report_patterns ──────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "analyze_report_patterns",
   "Fetch your recent reports and analyze patterns: most common vulnerability types, severity distribution, resolution rates, and programs. Useful for understanding your hunting profile.",
   {
@@ -342,7 +324,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_program_scope ──────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_program_scope",
   "Get the in-scope assets for a bug bounty program. Auto-paginates to return all scope items. Returns asset types, identifiers, bounty eligibility, and severity caps.",
   {
@@ -374,7 +356,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_program_weaknesses ────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_program_weaknesses",
   "Get the accepted vulnerability/weakness types for a program. Auto-paginates. Helps frame reports using the right CWE categories the program cares about.",
   {
@@ -406,7 +388,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_earnings ──────────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_earnings",
   "Get your bounty earnings history. Shows amounts, currency, dates, and which programs paid out.",
   {
@@ -435,7 +417,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_hacker_profile ──────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_hacker_profile",
   "Get your HackerOne hacker profile: reputation, signal, impact, rank, and account info.",
   {},
@@ -457,7 +439,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: get_balance ─────────────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "get_balance",
   "Get your current unpaid bounty balance on HackerOne.",
   {},
@@ -479,7 +461,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: submit_report ───────────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "submit_report",
   "Submit a new vulnerability report to a HackerOne program. Returns the new report ID and URL. Use get_program_scope and get_program_weaknesses first to get the right scope/weakness IDs.",
   {
@@ -531,7 +513,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: add_comment ─────────────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "add_comment",
   "Add a comment to an existing HackerOne report. Use this to respond to triage questions or provide additional information.",
   {
@@ -560,7 +542,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: close_report ────────────────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "close_report",
   "Withdraw/close one of your own HackerOne reports. Sends a close request with an optional message.",
   {
@@ -588,7 +570,7 @@ registerH1Tool(server,
 );
 
 // ── Tool: search_disclosed_reports ────────────────────────────────
-registerH1Tool(server, 
+server.tool(
   "search_disclosed_reports",
   "Search publicly disclosed HackerOne reports (hacktivity). Useful for learning what gets paid, finding prior art, and understanding what a program considers valid.",
   {
