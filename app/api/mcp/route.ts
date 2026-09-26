@@ -18,6 +18,11 @@ import {
   searchDisclosedReports,
 } from "../../../src/h1client";
 import { runWithHackerOneCredentials } from "../../../src/request-auth";
+import {
+  decodeAccessToken,
+  OAUTH_RESOURCE,
+  PROTECTED_RESOURCE_METADATA_URL,
+} from "../../../src/oauth";
 
 const handler = createMcpHandler(
   (server) => {
@@ -625,7 +630,7 @@ server.tool(
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-function getCredentials(request: Request) {
+function getBasicCredentials(request: Request) {
   const auth = request.headers.get("authorization");
   if (!auth || !auth.toLowerCase().startsWith("basic ")) return null;
 
@@ -644,34 +649,65 @@ function getCredentials(request: Request) {
   }
 }
 
-async function securedHandler(request: Request) {
-  const credentials = getCredentials(request);
-
-  // Prefer per-request credentials when supplied. For a private Vercel
-  // deployment, H1_USERNAME + H1_API_TOKEN may instead be configured as
-  // encrypted project environment variables.
-  if (credentials) {
-    return runWithHackerOneCredentials(credentials, () => handler(request));
-  }
-
-  if (process.env.H1_USERNAME && process.env.H1_API_TOKEN) {
-    return handler(request);
-  }
+function oauthChallenge(
+  error = "invalid_token",
+  description = "Connect your HackerOne account with OAuth to continue."
+) {
+  const challenge =
+    'Bearer resource_metadata="' +
+    PROTECTED_RESOURCE_METADATA_URL +
+    '", scope="hackerone", error="' +
+    error.replace(/"/g, "") +
+    '", error_description="' +
+    description.replace(/"/g, "") +
+    '"';
 
   return new Response(
     JSON.stringify({
-      error: "HackerOne credentials required",
-      hint:
-        "Configure H1_USERNAME and H1_API_TOKEN on the server, or use HTTP Basic auth with your HackerOne username and API token.",
+      error: "oauth_required",
+      error_description: description,
+      resource: OAUTH_RESOURCE,
     }),
     {
       status: 401,
       headers: {
         "content-type": "application/json",
-        "www-authenticate": 'Basic realm="HackerOne MCP"',
+        "cache-control": "no-store",
+        "www-authenticate": challenge,
       },
     }
   );
+}
+
+async function securedHandler(request: Request) {
+  const authorization = request.headers.get("authorization") ?? "";
+
+  // ChatGPT / MCP OAuth 2.1 bearer authentication.
+  if (authorization.toLowerCase().startsWith("bearer ")) {
+    try {
+      const accessToken = authorization.slice(7).trim();
+      const credentials = decodeAccessToken(accessToken);
+      return runWithHackerOneCredentials(credentials, () => handler(request));
+    } catch (error: any) {
+      return oauthChallenge(
+        "invalid_token",
+        error?.message || "The OAuth access token is invalid or expired."
+      );
+    }
+  }
+
+  // Keep Basic auth for direct/local clients and backwards compatibility.
+  const basicCredentials = getBasicCredentials(request);
+  if (basicCredentials) {
+    return runWithHackerOneCredentials(basicCredentials, () => handler(request));
+  }
+
+  // Optional private deployment credentials still work when configured.
+  if (process.env.H1_USERNAME && process.env.H1_API_TOKEN) {
+    return handler(request);
+  }
+
+  return oauthChallenge();
 }
 
 export { securedHandler as GET, securedHandler as POST, securedHandler as DELETE };

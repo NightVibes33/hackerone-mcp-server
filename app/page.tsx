@@ -18,7 +18,7 @@ export default function Home() {
           HackerOne MCP Server
         </h1>
         <p style={{ lineHeight: 1.7, color: "#bdbdbd" }}>
-          The remote MCP transport is running. Connect your MCP client to:
+          ChatGPT-compatible Streamable HTTP MCP transport:
         </p>
         <pre
           style={{
@@ -32,10 +32,23 @@ export default function Home() {
           /api/mcp
         </pre>
         <p style={{ lineHeight: 1.7, color: "#bdbdbd" }}>
-          Authentication uses HTTP Basic auth with your HackerOne username and API token.
+          Authentication: OAuth 2.1 authorization-code flow with PKCE. During
+          account linking, HackerOne credentials are verified directly with
+          HackerOne and are not committed to this repository.
         </p>
         <p style={{ lineHeight: 1.7, color: "#777" }}>
-          Health check: <a href="/api/health" style={{ color: "#60a5fa" }}>/api/health</a>
+          OAuth metadata:{" "}
+          <a href="/.well-known/oauth-protected-resource" style={{ color: "#60a5fa" }}>
+            protected resource
+          </a>
+          {" · "}
+          <a href="/.well-known/oauth-authorization-server" style={{ color: "#60a5fa" }}>
+            authorization server
+          </a>
+          {" · "}
+          <a href="/api/health" style={{ color: "#60a5fa" }}>
+            health
+          </a>
         </p>
       </section>
     </main>
