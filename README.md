@@ -11,6 +11,8 @@ MCP server that gives Claude Code (or any MCP client) full access to your Hacker
 
 The remote Streamable HTTP MCP endpoint is:
 
+Production MCP endpoint: `https://hackeronemcpserver.vercel.app/api/mcp`
+
 ```text
 https://YOUR-PROJECT.vercel.app/api/mcp
 ```
