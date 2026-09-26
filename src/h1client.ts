@@ -529,21 +529,27 @@ export async function getEarnings(pageSize = 100) {
 
 // ── Get hacker profile ────────────────────────────────────────────
 export async function getHackerProfile() {
-  const data = await h1Fetch("/hackers/me");
-  const u = data.data;
-  const attrs = u.attributes;
+  const requestCredentials = getHackerOneCredentials();
+  const username = requestCredentials?.username ?? process.env.H1_USERNAME;
+
+  if (!username) {
+    throw new Error(
+      "Missing H1_USERNAME or H1_API_TOKEN environment variables"
+    );
+  }
+
+  // HackerOne's current Hacker API does not expose a standalone /hackers/me
+  // profile resource. Verify the authenticated identity using the documented
+  // account-scoped reports endpoint instead.
+  await h1Fetch("/hackers/me/reports", {
+    "page[size]": "1",
+    "page[number]": "1",
+  });
 
   return {
-    id: u.id,
-    username: attrs.username,
-    name: attrs.name,
-    bio: attrs.bio,
-    reputation: attrs.reputation,
-    signal: attrs.signal,
-    impact: attrs.impact,
-    rank: attrs.rank,
-    created_at: attrs.created_at,
-    hackerone_triager: attrs.hackerone_triager,
+    username,
+    authenticated: true,
+    api: "HackerOne Hacker API",
   };
 }
 
