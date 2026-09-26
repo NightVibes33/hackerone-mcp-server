@@ -665,4 +665,4 @@ async function securedHandler(request: Request) {
   return runWithHackerOneCredentials(credentials, () => handler(request));
 }
 
-export { securedHandler as GET, securedHandler as POST };
+export { securedHandler as GET, securedHandler as POST, securedHandler as DELETE };
