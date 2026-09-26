@@ -61,12 +61,17 @@ function toolError(err: unknown) {
   };
 }
 
-function registerH1Tool(
+type ToolShape = Record<string, z.ZodTypeAny>;
+type InferToolShape<T extends ToolShape> = {
+  [K in keyof T]: z.infer<T[K]>;
+};
+
+function registerH1Tool<T extends ToolShape>(
   server: any,
   name: string,
   description: string,
-  inputSchema: any,
-  handler: any
+  inputSchema: T,
+  handler: (params: InferToolShape<T>) => any
 ) {
   return server.registerTool(
     name,
