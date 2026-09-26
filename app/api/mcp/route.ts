@@ -72,7 +72,7 @@ function registerH1Tool(
     name,
     {
       description,
-      inputSchema,
+      inputSchema: z.object(inputSchema),
       _meta: {
         securitySchemes: [{ type: "noauth" }],
       },
@@ -626,13 +626,6 @@ registerH1Tool(server,
   }
 );
 
-  },
-  {},
-  {
-    basePath: "/api",
-    maxDuration: 60,
-    verboseLogs: false,
-    disableSse: true,
   }
 );
 
