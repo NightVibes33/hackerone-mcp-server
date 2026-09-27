@@ -441,6 +441,7 @@ export async function getReport(reportId: string) {
   const sev = r.relationships?.severity?.data?.attributes;
   const bounty = r.relationships?.bounties?.data?.[0]?.attributes;
   const attachments = r.relationships?.attachments?.data ?? [];
+  const reporter = r.relationships?.reporter?.data?.attributes ?? null;
 
   return {
     id: r.id,
@@ -486,6 +487,15 @@ export async function getReport(reportId: string) {
       null,
     structured_scope_type:
       r.relationships?.structured_scope?.data?.attributes?.asset_type ?? null,
+    reporter: reporter
+      ? {
+          username: reporter.username ?? null,
+          reputation: reporter.reputation ?? null,
+          signal: reporter.signal ?? null,
+          impact: reporter.impact ?? null,
+          user_type: reporter.user_type ?? null,
+        }
+      : null,
     attributes: attrs,
     attachments: attachments.map((a: any) => ({
       id: a.id,
