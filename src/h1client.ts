@@ -129,7 +129,41 @@ async function h1Post(
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`HackerOne API error ${res.status}: ${text}`);
+        const safeHeaderNames = [
+          "x-request-id",
+          "x-ratelimit-limit",
+          "x-ratelimit-remaining",
+          "x-ratelimit-reset",
+          "retry-after",
+          "www-authenticate",
+          "location",
+        ];
+        const safeHeaders = Object.fromEntries(
+          safeHeaderNames
+            .map((name) => [name, res.headers.get(name)] as const)
+            .filter(([, value]) => value != null && value !== "")
+        );
+        const headerSuffix =
+          Object.keys(safeHeaders).length > 0
+            ? ` headers=${JSON.stringify(safeHeaders)}`
+            : "";
+
+        let diagnostic = "";
+        if (
+          res.status === 403 &&
+          (path === "/hackers/reports" ||
+            /^\\/hackers\\/report_intents\\/[^/]+\\/submit$/.test(path))
+        ) {
+          diagnostic =
+            " Final HackerOne submission was forbidden even though the API credential authenticated successfully. " +
+            "This is normally a HackerOne submission-eligibility gate (for example ID verification/renewal, " +
+            "a new-hacker/daily submission restriction, signal/trial-report restrictions, or another account/program eligibility rule), " +
+            "not a malformed report payload. The draft/report data is preserved; do not rotate credentials solely for this 403.";
+        }
+
+        throw new Error(
+          `HackerOne API error ${res.status}: ${text}${headerSuffix}${diagnostic}`
+        );
       }
 
       // Invalidate caches that may be stale after a write
