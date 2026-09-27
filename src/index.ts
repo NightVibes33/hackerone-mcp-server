@@ -11,10 +11,21 @@ import {
   listPrograms,
   getProgramDetails,
   getProgramScope,
+  getProgramScopeExclusions,
   getProgramWeaknesses,
   getEarnings,
+  getPayouts,
   getHackerProfile,
   getBalance,
+  listReportIntents,
+  getReportIntent,
+  createReportIntent,
+  updateReportIntent,
+  deleteReportIntent,
+  submitReportIntent,
+  listReportIntentAttachments,
+  uploadReportIntentAttachments,
+  deleteReportIntentAttachment,
   submitReport,
   addComment,
   closeReport,
@@ -23,7 +34,7 @@ import {
 
 const server = new McpServer({
   name: "hackerone",
-  version: "2.0.0",
+  version: "3.0.0",
 });
 
 // ── Tool: search_reports ───────────────────────────────────────────
@@ -341,6 +352,23 @@ server.tool(
   }
 );
 
+// ── Tool: get_program_scope_exclusions ───────────────────────────
+server.tool(
+  "get_program_scope_exclusions",
+  "Get a program's explicit scope exclusions / report categories excluded from rewards.",
+  {
+    program_handle: z.string().describe("Program handle (e.g. 'vercel', 'gitlab')"),
+  },
+  async ({ program_handle }) => {
+    try {
+      const exclusions = await getProgramScopeExclusions(program_handle);
+      return { content: [{ type: "text" as const, text: JSON.stringify(exclusions, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
 // ── Tool: get_program_weaknesses ────────────────────────────────
 server.tool(
   "get_program_weaknesses",
@@ -387,10 +415,11 @@ server.tool(
       .max(100)
       .optional()
       .describe("Number of earnings to return (default 100)"),
+    page_number: z.number().min(1).optional().describe("Page number (default 1)"),
   },
-  async ({ page_size }) => {
+  async ({ page_size, page_number }) => {
     try {
-      const earnings = await getEarnings(page_size);
+      const earnings = await getEarnings(page_size, page_number);
       return {
         content: [
           {
@@ -404,6 +433,24 @@ server.tool(
         content: [{ type: "text" as const, text: `Error: ${err.message}` }],
         isError: true,
       };
+    }
+  }
+);
+
+// ── Tool: get_payouts ─────────────────────────────────────────────
+server.tool(
+  "get_payouts",
+  "Get HackerOne payout history, including amount, provider, status, reference, and paid-out timestamp.",
+  {
+    page_size: z.number().min(1).max(100).optional().describe("Number of payouts to return (default 100)"),
+    page_number: z.number().min(1).optional().describe("Page number (default 1)"),
+  },
+  async ({ page_size, page_number }) => {
+    try {
+      const payouts = await getPayouts(page_size, page_number);
+      return { content: [{ type: "text" as const, text: JSON.stringify(payouts, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
     }
   }
 );
@@ -458,6 +505,152 @@ server.tool(
   }
 );
 
+// ── Report Intents (Report Assistant) ────────────────────────────
+server.tool(
+  "list_report_intents",
+  "List your HackerOne Report Assistant draft intents.",
+  {
+    page_size: z.number().min(1).max(100).optional().describe("Results per page (default 25)"),
+    page_number: z.number().min(1).optional().describe("Page number (default 1)"),
+  },
+  async ({ page_size, page_number }) => {
+    try {
+      const result = await listReportIntents(page_size, page_number);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "get_report_intent",
+  "Get one HackerOne Report Assistant draft intent and its processing state.",
+  { report_intent_id: z.string().describe("Report Intent ID") },
+  async ({ report_intent_id }) => {
+    try {
+      const result = await getReportIntent(report_intent_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "create_report_intent",
+  "Create a Report Assistant draft intent. The target program must have Report Assistant enabled.",
+  {
+    program_handle: z.string().describe("Program handle"),
+    description: z.string().describe("Initial vulnerability description / reproduction details"),
+  },
+  async ({ program_handle, description }) => {
+    try {
+      const result = await createReportIntent(program_handle, description);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "update_report_intent",
+  "Update the description of an editable Report Assistant draft intent.",
+  {
+    report_intent_id: z.string().describe("Report Intent ID"),
+    description: z.string().describe("Replacement vulnerability description"),
+  },
+  async ({ report_intent_id, description }) => {
+    try {
+      const result = await updateReportIntent(report_intent_id, description);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "delete_report_intent",
+  "Delete one of your Report Assistant draft intents. This is irreversible.",
+  { report_intent_id: z.string().describe("Report Intent ID") },
+  async ({ report_intent_id }) => {
+    try {
+      const result = await deleteReportIntent(report_intent_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "submit_report_intent",
+  "Submit a ready_to_submit Report Assistant intent and convert it into a vulnerability report.",
+  { report_intent_id: z.string().describe("Report Intent ID") },
+  async ({ report_intent_id }) => {
+    try {
+      const result = await submitReportIntent(report_intent_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "list_report_intent_attachments",
+  "List attachments currently associated with a Report Assistant draft intent.",
+  { report_intent_id: z.string().describe("Report Intent ID") },
+  async ({ report_intent_id }) => {
+    try {
+      const result = await listReportIntentAttachments(report_intent_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "upload_report_intent_attachments",
+  "Upload one or more base64-encoded files to an editable Report Assistant draft intent.",
+  {
+    report_intent_id: z.string().describe("Report Intent ID"),
+    files: z.array(z.object({
+      file_name: z.string().min(1),
+      content_type: z.string().optional(),
+      base64_data: z.string().min(1),
+    })).min(1).max(10),
+  },
+  async ({ report_intent_id, files }) => {
+    try {
+      const result = await uploadReportIntentAttachments(report_intent_id, files);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "delete_report_intent_attachment",
+  "Delete an attachment from an editable Report Assistant draft intent. This is irreversible.",
+  {
+    report_intent_id: z.string().describe("Report Intent ID"),
+    attachment_id: z.string().describe("Attachment ID"),
+  },
+  async ({ report_intent_id, attachment_id }) => {
+    try {
+      const result = await deleteReportIntentAttachment(report_intent_id, attachment_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
 // ── Tool: submit_report ───────────────────────────────────────────
 server.tool(
   "submit_report",
@@ -492,6 +685,10 @@ server.tool(
       .describe(
         "Scope asset ID from get_program_scope (the numeric id field)"
       ),
+    attachment_ids: z
+      .array(z.string())
+      .optional()
+      .describe("Optional HackerOne attachment IDs to associate with the report"),
   },
   async (params) => {
     try {
