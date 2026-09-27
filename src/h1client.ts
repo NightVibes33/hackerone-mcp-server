@@ -209,7 +209,7 @@ function sleep(ms: number): Promise<void> {
 async function h1FetchAllPages(
   path: string,
   extraParams?: Record<string, string>,
-  maxPages = 20
+  maxPages = 100
 ): Promise<any[]> {
   const all: any[] = [];
   for (let page = 1; page <= maxPages; page++) {
@@ -488,7 +488,7 @@ export async function getReportActivities(
 }
 
 // ── List programs (auto-paginated) ────────────────────────────────
-export async function listPrograms(pageSize = 50) {
+export async function listPrograms(pageSize?: number) {
   const allData = await h1FetchAllPages("/hackers/programs");
 
   const programs = allData.map((p: any) => ({
@@ -540,7 +540,7 @@ export async function getProgramDetails(handle: string) {
 }
 
 // ── Get program scope (auto-paginated) ────────────────────────────
-export async function getProgramScope(handle: string, pageSize = 100) {
+export async function getProgramScope(handle: string, pageSize?: number) {
   const allData = await h1FetchAllPages(
     `/hackers/programs/${handle}/structured_scopes`
   );
@@ -568,7 +568,7 @@ export async function getProgramScope(handle: string, pageSize = 100) {
 }
 
 // ── Get program weaknesses (auto-paginated) ───────────────────────
-export async function getProgramWeaknesses(handle: string, pageSize = 100) {
+export async function getProgramWeaknesses(handle: string, pageSize?: number) {
   const allData = await h1FetchAllPages(
     `/hackers/programs/${handle}/weaknesses`
   );
