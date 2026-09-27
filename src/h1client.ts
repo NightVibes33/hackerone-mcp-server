@@ -863,7 +863,6 @@ export async function submitReport(opts: {
   severity_rating?: string;
   weakness_id?: string;
   structured_scope_id?: string;
-  attachment_ids?: string[];
 }) {
   const attributes: Record<string, any> = {
     team_handle: opts.program_handle,
@@ -876,8 +875,6 @@ export async function submitReport(opts: {
   if (opts.weakness_id) attributes.weakness_id = Number(opts.weakness_id);
   if (opts.structured_scope_id)
     attributes.structured_scope_id = Number(opts.structured_scope_id);
-  if (opts.attachment_ids?.length)
-    attributes.attachment_ids = opts.attachment_ids.map((id) => Number(id));
 
   const body = {
     data: {
