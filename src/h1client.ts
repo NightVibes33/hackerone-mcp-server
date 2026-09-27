@@ -832,46 +832,24 @@ export async function submitReport(opts: {
   structured_scope_id?: string;
   attachment_ids?: string[];
 }) {
-  const relationships: any = {
-    program: {
-      data: {
-        type: "program",
-        attributes: { handle: opts.program_handle },
-      },
-    },
+  const attributes: Record<string, any> = {
+    team_handle: opts.program_handle,
+    title: opts.title,
+    vulnerability_information: opts.vulnerability_information,
+    impact: opts.impact ?? "",
   };
 
-  if (opts.weakness_id) {
-    relationships.weakness = {
-      data: { type: "weakness", id: opts.weakness_id },
-    };
-  }
-
-  if (opts.structured_scope_id) {
-    relationships.structured_scope = {
-      data: { type: "structured-scope", id: opts.structured_scope_id },
-    };
-  }
-
-  const severity: any = {};
-  if (opts.severity_rating) {
-    severity.rating = opts.severity_rating;
-  }
+  if (opts.severity_rating) attributes.severity_rating = opts.severity_rating;
+  if (opts.weakness_id) attributes.weakness_id = Number(opts.weakness_id);
+  if (opts.structured_scope_id)
+    attributes.structured_scope_id = Number(opts.structured_scope_id);
+  if (opts.attachment_ids?.length)
+    attributes.attachment_ids = opts.attachment_ids.map((id) => Number(id));
 
   const body = {
     data: {
       type: "report",
-      attributes: {
-        team_handle: opts.program_handle,
-        title: opts.title,
-        vulnerability_information: opts.vulnerability_information,
-        impact: opts.impact ?? "",
-        severity_rating: opts.severity_rating,
-        ...(opts.attachment_ids?.length
-          ? { attachment_ids: opts.attachment_ids.map((id) => Number(id)) }
-          : {}),
-      },
-      relationships,
+      attributes,
     },
   };
 
@@ -897,15 +875,20 @@ export async function submitReport(opts: {
     }
     throw err;
   }
+
   const r = result.data;
   return {
     id: r.id,
     title: r.attributes?.title,
     state: r.attributes?.state,
+    severity: r.relationships?.severity?.data?.attributes?.rating ?? opts.severity_rating ?? null,
+    weakness: r.relationships?.weakness?.data?.attributes?.name ?? null,
+    weakness_id: r.relationships?.weakness?.data?.id ?? opts.weakness_id ?? null,
+    structured_scope: r.relationships?.structured_scope?.data?.attributes?.asset_identifier ?? null,
+    structured_scope_id: r.relationships?.structured_scope?.data?.id ?? opts.structured_scope_id ?? null,
     url: `https://hackerone.com/reports/${r.id}`,
   };
 }
-
 // ── Add comment to report ─────────────────────────────────────────
 export async function addComment(
   reportId: string,
