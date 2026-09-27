@@ -5,10 +5,10 @@ export function GET() {
   return Response.json({
     ok: true,
     service: "hackerone-mcp-server",
-    version: "3.0.0",
+    version: "3.0.1",
     hackerone_api: {
       version: "v1",
-      reviewed_through: "2026-09-15",
+      reviewed_through: "2026-09-27",
     },
     deployment: {
       git_sha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
