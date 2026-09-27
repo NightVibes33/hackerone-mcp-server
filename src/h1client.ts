@@ -1,4 +1,4 @@
-import fetch, { type RequestInit } from "node-fetch";
+import fetch, { Blob, FormData, type RequestInit } from "node-fetch";
 import { type Readable } from "stream";
 import { getHackerOneCredentials } from "./request-auth";
 
@@ -144,6 +144,61 @@ async function h1Post(
     }
   }
   throw lastErr ?? new Error("h1Post failed after retries");
+}
+
+async function h1Patch(path: string, body: any): Promise<any> {
+  const url = `${H1_BASE}${path}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Basic ${getAuth()}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HackerOne API error ${res.status}: ${text}`);
+  return text ? JSON.parse(text) : {};
+}
+
+async function h1Delete(path: string): Promise<any> {
+  const url = `${H1_BASE}${path}`;
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Basic ${getAuth()}`,
+      Accept: "application/json",
+    },
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HackerOne API error ${res.status}: ${text}`);
+  return text ? JSON.parse(text) : {};
+}
+
+async function h1PostForm(
+  path: string,
+  files: Array<{ file_name: string; content_type?: string; base64_data: string }>
+): Promise<any> {
+  const form = new FormData();
+  for (const file of files) {
+    const bytes = Buffer.from(file.base64_data, "base64");
+    const blob = new Blob([bytes], {
+      type: file.content_type || "application/octet-stream",
+    });
+    form.append("files[]", blob, file.file_name);
+  }
+  const res = await fetch(`${H1_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${getAuth()}`,
+      Accept: "application/json",
+    },
+    body: form as any,
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HackerOne API error ${res.status}: ${text}`);
+  return text ? JSON.parse(text) : {};
 }
 
 function sleep(ms: number): Promise<void> {
