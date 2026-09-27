@@ -126,7 +126,7 @@ node dist/index.js
 
 | Tool | Description |
 |------|-------------|
-| `submit_report` | Submit a new vulnerability report (supports attachment IDs) |
+| `submit_report` | Submit a new vulnerability report |
 | `create_report_intent` | Create a Report Assistant draft when the program enables Report Assistant |
 | `update_report_intent` | Update a Report Assistant draft |
 | `submit_report_intent` | Submit a ready Report Assistant draft |
@@ -141,7 +141,6 @@ node dist/index.js
 This repository is aligned with HackerOne Hacker API changes published through **September 15, 2026**.
 
 - `severity_rating` may be required by the destination program.
-- `submit_report` supports `attachment_ids`.
 - Report objects expose `submitted_at` and current HAI prioritization fields when HackerOne returns them.
 - Structured scope, scope exclusions, payouts, and the full Report Intents workflow are exposed.
 - The official HackerOne Hacker API still does **not** accept program-specific required custom-field values on `POST /hackers/reports`. The MCP detects that rejection and returns the required field names clearly instead of a generic 400.
