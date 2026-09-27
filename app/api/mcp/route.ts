@@ -714,10 +714,6 @@ registerH1Tool(server,
       .describe(
         "Scope asset ID from get_program_scope (the numeric id field)"
       ),
-    attachment_ids: z
-      .array(z.string())
-      .optional()
-      .describe("Optional HackerOne attachment IDs to associate with the report"),
   },
   async (params) => {
     try {
