@@ -794,7 +794,7 @@ registerH1Tool(server,
 // ── Tool: search_disclosed_reports ────────────────────────────────
 registerH1Tool(server, 
   "search_disclosed_reports",
-  "Search publicly disclosed HackerOne reports (hacktivity). Useful for learning what gets paid, finding prior art, and understanding what a program considers valid.",
+  "Search HackerOne Hacktivity. Supports simple program/keyword filtering plus native HackerOne Lucene queries and current sort fields.",
   {
     program: z
       .string()
@@ -803,7 +803,25 @@ registerH1Tool(server,
     query: z
       .string()
       .optional()
-      .describe("Keyword to filter results (e.g. 'SSRF', 'IDOR')"),
+      .describe("Simple keyword filter applied to returned Hacktivity items"),
+    lucene_query: z
+      .string()
+      .optional()
+      .describe("Optional native HackerOne Hacktivity Lucene queryString"),
+    sort: z
+      .enum([
+        "latest_disclosable_activity_at",
+        "-latest_disclosable_activity_at",
+        "disclosed_at",
+        "-disclosed_at",
+        "total_awarded_amount",
+        "-total_awarded_amount",
+        "votes",
+        "-votes",
+      ])
+      .optional()
+      .describe("HackerOne Hacktivity sort field"),
+    page_number: z.number().min(1).optional().describe("Starting page number (default 1)"),
     page_size: z
       .number()
       .min(1)
