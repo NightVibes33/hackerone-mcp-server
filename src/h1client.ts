@@ -942,24 +942,46 @@ export async function closeReport(reportId: string, message?: string) {
   };
 }
 
-// ── Search disclosed reports ──────────────────────────────────────
+// ── Search disclosed reports / Hacktivity ─────────────────────────
 export async function searchDisclosedReports(opts: {
   program?: string;
   query?: string;
+  lucene_query?: string;
+  sort?:
+    | "latest_disclosable_activity_at"
+    | "-latest_disclosable_activity_at"
+    | "disclosed_at"
+    | "-disclosed_at"
+    | "total_awarded_amount"
+    | "-total_awarded_amount"
+    | "votes"
+    | "-votes";
   page_size?: number;
+  page_number?: number;
 }) {
   const wanted = Math.max(1, Math.min(opts.page_size ?? 25, 100));
   const program = opts.program?.toLowerCase();
   const query = opts.query?.toLowerCase();
   const matches: any[] = [];
+  const firstPage = Math.max(1, opts.page_number ?? 1);
 
-  for (let page = 1; page <= 20 && matches.length < wanted; page++) {
+  const queryParts: string[] = [];
+  if (opts.lucene_query?.trim()) {
+    queryParts.push(`(${opts.lucene_query.trim()})`);
+  } else {
+    queryParts.push("disclosed:true");
+    if (opts.program?.trim()) queryParts.push(`team:${opts.program.trim()}`);
+  }
+  const queryString = queryParts.join(" AND ");
+
+  for (let page = firstPage; page < firstPage + 20 && matches.length < wanted; page++) {
     const data = await h1Fetch(
       "/hackers/hacktivity",
       {
         "page[size]": "100",
         "page[number]": String(page),
-        sort: "-disclosed_at",
+        sort: opts.sort ?? "-disclosed_at",
+        ...(queryString ? { queryString } : {}),
       },
       { skipCache: true }
     );
@@ -982,6 +1004,7 @@ export async function searchDisclosedReports(opts: {
         const haystack = [
           attrs.title,
           attrs.cwe,
+          ...(attrs.cve_ids ?? []),
           summary,
           reporter?.username,
           prog?.handle,
@@ -997,14 +1020,20 @@ export async function searchDisclosedReports(opts: {
         id: r.id,
         title: attrs.title ?? null,
         severity: attrs.severity_rating ?? null,
+        submitted_at: attrs.submitted_at ?? null,
         disclosed_at: attrs.disclosed_at ?? null,
+        latest_disclosable_activity_at: attrs.latest_disclosable_activity_at ?? null,
+        latest_disclosable_action: attrs.latest_disclosable_action ?? null,
         total_awarded_amount: attrs.total_awarded_amount ?? null,
         votes: attrs.votes ?? null,
+        cve_ids: attrs.cve_ids ?? [],
         url: attrs.url ?? `https://hackerone.com/reports/${r.id}`,
         reporter: reporter?.username ?? null,
         program: prog?.handle ?? null,
+        program_name: prog?.name ?? null,
         weakness: attrs.cwe ?? null,
         summary,
+        attributes: attrs,
       });
 
       if (matches.length >= wanted) break;
