@@ -875,7 +875,28 @@ export async function submitReport(opts: {
     },
   };
 
-  const result = await h1Post("/hackers/reports", body);
+  let result: any;
+  try {
+    result = await h1Post("/hackers/reports", body);
+  } catch (err: any) {
+    const message = err?.message ?? String(err);
+    if (/Required custom fields must be filled in:/i.test(message)) {
+      const match = message.match(/Required custom fields must be filled in:\s*([^\"}\]]+)/i);
+      const required = match?.[1]?.trim() ?? "one or more program-specific fields";
+      throw new Error(
+        "HackerOne rejected the API submission because the program requires custom report fields (" +
+          required +
+          "). The official HackerOne Hacker API create-report endpoint does not currently accept custom-field values. " +
+          "Submit through the HackerOne web form, or use Report Intents only when that program has Report Assistant enabled."
+      );
+    }
+    if (/severity_rating/i.test(message) && /422|Required|missing/i.test(message)) {
+      throw new Error(
+        "HackerOne requires severity_rating for this program. Provide one of: none, low, medium, high, critical."
+      );
+    }
+    throw err;
+  }
   const r = result.data;
   return {
     id: r.id,
