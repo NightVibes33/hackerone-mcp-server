@@ -539,13 +539,52 @@ export async function getProgramDetails(handle: string) {
   };
 }
 
-// ── Get program scope (auto-paginated) ────────────────────────────
+// ── Get program scope (auto-paginated, including >10k via id cursor) ──
 export async function getProgramScope(handle: string, pageSize?: number) {
-  const allData = await h1FetchAllPages(
-    `/hackers/programs/${handle}/structured_scopes`
-  );
+  const allData: any[] = [];
+  const wanted = pageSize && pageSize > 0 ? pageSize : Number.POSITIVE_INFINITY;
+  let idGt: string | undefined;
+  let done = false;
 
-  const scopes = allData.map((s: any) => ({
+  while (!done && allData.length < wanted) {
+    let lastBatchId: string | undefined;
+
+    for (let page = 1; page <= 100 && allData.length < wanted; page++) {
+      const params: Record<string, string> = {
+        "page[size]": "100",
+        "page[number]": String(page),
+      };
+      if (idGt) params["filter[id__gt]"] = idGt;
+
+      const data = await h1Fetch(
+        `/hackers/programs/${encodeURIComponent(handle)}/structured_scopes`,
+        params
+      );
+      const items = data.data ?? [];
+      if (!items.length) {
+        done = true;
+        break;
+      }
+
+      for (const item of items) {
+        allData.push(item);
+        lastBatchId = String(item.id);
+        if (allData.length >= wanted) break;
+      }
+
+      if (items.length < 100) {
+        done = true;
+        break;
+      }
+    }
+
+    if (!done && allData.length < wanted) {
+      if (!lastBatchId || lastBatchId === idGt) break;
+      idGt = lastBatchId;
+    }
+  }
+
+  return allData.slice(0, Number.isFinite(wanted) ? wanted : allData.length).map((s: any) => ({
     id: s.id,
     asset_type: s.attributes.asset_type,
     asset_identifier: s.attributes.asset_identifier,
@@ -560,13 +599,7 @@ export async function getProgramScope(handle: string, pageSize?: number) {
     integrity_requirement: s.attributes.integrity_requirement ?? null,
     availability_requirement: s.attributes.availability_requirement ?? null,
   }));
-
-  if (pageSize && pageSize < scopes.length) {
-    return scopes.slice(0, pageSize);
-  }
-  return scopes;
 }
-
 // ── Get program weaknesses (auto-paginated) ───────────────────────
 export async function getProgramWeaknesses(handle: string, pageSize?: number) {
   const allData = await h1FetchAllPages(
