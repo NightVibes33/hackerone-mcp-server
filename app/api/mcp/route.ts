@@ -848,6 +848,12 @@ registerH1Tool(server,
   }
 );
 
+  },
+  {
+    serverInfo: {
+      name: "hackerone-mcp-server",
+      version: "3.0.0",
+    },
   }
 );
 
