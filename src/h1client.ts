@@ -737,9 +737,10 @@ export async function deleteReportIntentAttachment(
 }
 
 // ── Get earnings ──────────────────────────────────────────────────
-export async function getEarnings(pageSize = 100) {
+export async function getEarnings(pageSize = 100, pageNumber = 1) {
   const data = await h1Fetch("/hackers/payments/earnings", {
-    "page[size]": String(pageSize),
+    "page[size]": String(Math.max(1, Math.min(pageSize, 100))),
+    "page[number]": String(Math.max(1, pageNumber)),
   });
 
   return data.data.map((e: any) => ({
@@ -829,6 +830,7 @@ export async function submitReport(opts: {
   severity_rating?: string;
   weakness_id?: string;
   structured_scope_id?: string;
+  attachment_ids?: string[];
 }) {
   const relationships: any = {
     program: {
@@ -865,6 +867,9 @@ export async function submitReport(opts: {
         vulnerability_information: opts.vulnerability_information,
         impact: opts.impact ?? "",
         severity_rating: opts.severity_rating,
+        ...(opts.attachment_ids?.length
+          ? { attachment_ids: opts.attachment_ids.map((id) => Number(id)) }
+          : {}),
       },
       relationships,
     },
