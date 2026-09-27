@@ -18,7 +18,8 @@ jobs:
           for i in $(seq 1 60); do
             body="$(curl --connect-timeout 5 --max-time 10 -fsS "$BASE/api/health" 2>/dev/null || true)"
             echo "attempt=$i health=$body"
-            if echo "$body" | grep -q '"version":"3.0.0"'; then
+            if echo "$body" | grep -q '"version":"3.0.0"' &&
+               echo "$body" | grep -q "\"git_sha\":\"$GITHUB_SHA\""; then
               ok=1
               break
             fi
