@@ -1,0 +1,75 @@
+name: Live production smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://hackeronemcpserver.vercel.app"
+          ok=0
+          for i in $(seq 1 60); do
+            body="$(curl --connect-timeout 5 --max-time 10 -fsS "$BASE/api/health" 2>/dev/null || true)"
+            echo "attempt=$i health=$body"
+            if echo "$body" | grep -q '"version":"3.0.0"'; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" -eq 1
+
+      - name: Verify OAuth discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://hackeronemcpserver.vercel.app"
+          curl --connect-timeout 5 --max-time 10 -fsS             "$BASE/.well-known/oauth-protected-resource" | tee /tmp/protected.json
+          grep -q '"resource"' /tmp/protected.json
+
+      - name: Verify live MCP tool catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://hackeronemcpserver.vercel.app/api/mcp"
+
+          curl --connect-timeout 5 --max-time 20 -sS -D /tmp/init.headers -o /tmp/init.body             -X POST "$URL"             -H 'Content-Type: application/json'             -H 'Accept: application/json, text/event-stream'             --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"github-live-smoke","version":"1.0"}}}'
+
+          echo "===== initialize headers ====="
+          cat /tmp/init.headers
+          echo "===== initialize body ====="
+          cat /tmp/init.body
+
+          session="$(awk -F': ' 'tolower($1)=="mcp-session-id"{gsub("\r","",$2); print $2}' /tmp/init.headers | tail -1)"
+          headers=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream')
+          if [ -n "$session" ]; then
+            headers+=(-H "Mcp-Session-Id: $session")
+            curl --connect-timeout 5 --max-time 20 -sS -o /tmp/initialized.body               -X POST "$URL" "${headers[@]}"               --data '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' || true
+          fi
+
+          ok=0
+          for i in $(seq 1 30); do
+            curl --connect-timeout 5 --max-time 20 -sS -o /tmp/tools.body               -X POST "$URL" "${headers[@]}"               --data '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' || true
+
+            echo "===== tools attempt $i ====="
+            head -c 10000 /tmp/tools.body || true
+            echo
+
+            if grep -q '"get_payouts"' /tmp/tools.body &&
+               grep -q '"get_program_scope_exclusions"' /tmp/tools.body &&
+               grep -q '"list_report_intents"' /tmp/tools.body &&
+               grep -q '"attachment_ids"' /tmp/tools.body; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+
+          test "$ok" -eq 1
