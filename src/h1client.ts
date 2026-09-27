@@ -152,7 +152,7 @@ async function h1Post(
         if (
           res.status === 403 &&
           (path === "/hackers/reports" ||
-            /^\\/hackers\\/report_intents\\/[^/]+\\/submit$/.test(path))
+            /^\/hackers\/report_intents\/[^/]+\/submit$/.test(path))
         ) {
           diagnostic =
             " Final HackerOne submission was forbidden even though the API credential authenticated successfully. " +
