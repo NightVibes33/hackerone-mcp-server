@@ -122,6 +122,7 @@ registerH1Tool(server,
     state: z
       .enum([
         "new",
+        "pending-program-review",
         "triaged",
         "needs-more-info",
         "resolved",
@@ -129,6 +130,7 @@ registerH1Tool(server,
         "informative",
         "duplicate",
         "spam",
+        "retesting",
       ])
       .optional()
       .describe("Filter by report state"),
