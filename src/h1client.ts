@@ -388,6 +388,7 @@ function mapReportSummary(r: any) {
     substate: r.attributes.substate,
     severity: r.attributes.severity_rating,
     created_at: r.attributes.created_at,
+    submitted_at: r.attributes.submitted_at ?? null,
     disclosed_at: r.attributes.disclosed_at,
     bounty_awarded_at: r.attributes.bounty_awarded_at,
     bounty_amount: bounty?.amount ?? null,
@@ -416,6 +417,14 @@ export async function getReport(reportId: string) {
     triaged_at: attrs.triaged_at,
     bounty_awarded_at: attrs.bounty_awarded_at,
     disclosed_at: attrs.disclosed_at,
+    submitted_at: attrs.submitted_at ?? null,
+    main_state: attrs.main_state ?? null,
+    substate: attrs.substate ?? null,
+    hai_is_priority: attrs.hai_is_priority ?? null,
+    hai_priority_reason: attrs.hai_priority_reason ?? null,
+    hai_priority_score: attrs.hai_priority_score ?? null,
+    hai_prioritization_tier: attrs.hai_prioritization_tier ?? null,
+    cve_ids: attrs.cve_ids ?? [],
     severity: sev?.rating ?? null,
     cvss_score: sev?.score ?? null,
     cvss_vector: sev?.attack_vector
@@ -443,6 +452,7 @@ export async function getReport(reportId: string) {
       null,
     structured_scope_type:
       r.relationships?.structured_scope?.data?.attributes?.asset_type ?? null,
+    attributes: attrs,
     attachments: attachments.map((a: any) => ({
       id: a.id,
       file_name: a.attributes?.file_name,
@@ -468,6 +478,7 @@ export async function getReportActivities(
     created_at: a.attributes.created_at,
     internal: a.attributes.internal,
     automated_response: a.attributes.automated_response,
+    attributes: a.attributes,
     actor_type: a.relationships?.actor?.data?.type ?? null,
     actor:
       a.relationships?.actor?.data?.attributes?.username ??
@@ -523,6 +534,8 @@ export async function getProgramDetails(handle: string) {
     open_scope: attrs.open_scope ?? null,
     fast_payments: attrs.fast_payments ?? null,
     gold_standard_safe_harbor: attrs.gold_standard_safe_harbor ?? null,
+    declarations: p?.relationships?.declarations?.data ?? [],
+    attributes: attrs,
   };
 }
 
@@ -541,6 +554,11 @@ export async function getProgramScope(handle: string, pageSize = 100) {
     instruction: s.attributes.instruction,
     max_severity: s.attributes.max_severity,
     created_at: s.attributes.created_at,
+    updated_at: s.attributes.updated_at ?? null,
+    reference: s.attributes.reference ?? null,
+    confidentiality_requirement: s.attributes.confidentiality_requirement ?? null,
+    integrity_requirement: s.attributes.integrity_requirement ?? null,
+    availability_requirement: s.attributes.availability_requirement ?? null,
   }));
 
   if (pageSize && pageSize < scopes.length) {
@@ -560,6 +578,7 @@ export async function getProgramWeaknesses(handle: string, pageSize = 100) {
     name: w.attributes.name,
     description: w.attributes.description,
     external_id: w.attributes.external_id,
+    created_at: w.attributes.created_at ?? null,
   }));
 
   if (pageSize && pageSize < weaknesses.length) {
