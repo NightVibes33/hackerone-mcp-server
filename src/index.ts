@@ -59,6 +59,7 @@ server.tool(
     state: z
       .enum([
         "new",
+        "pending-program-review",
         "triaged",
         "needs-more-info",
         "resolved",
@@ -66,6 +67,7 @@ server.tool(
         "informative",
         "duplicate",
         "spam",
+        "retesting",
       ])
       .optional()
       .describe("Filter by report state"),
