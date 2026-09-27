@@ -460,7 +460,7 @@ server.tool(
 // ── Tool: get_hacker_profile ──────────────────────────────────────
 server.tool(
   "get_hacker_profile",
-  "Get your HackerOne hacker profile: reputation, signal, impact, rank, and account info.",
+  "Verify the authenticated HackerOne hacker identity and return the connected username using the documented account-scoped Hacker API.",
   {},
   async () => {
     try {
