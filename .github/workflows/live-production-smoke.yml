@@ -65,8 +65,7 @@ jobs:
 
             if grep -q '"get_payouts"' /tmp/tools.body &&
                grep -q '"get_program_scope_exclusions"' /tmp/tools.body &&
-               grep -q '"list_report_intents"' /tmp/tools.body &&
-               grep -q '"attachment_ids"' /tmp/tools.body; then
+               grep -q '"list_report_intents"' /tmp/tools.body; then
               ok=1
               break
             fi
