@@ -2,7 +2,7 @@
 
 > **Disclaimer:** This is an unofficial, community-built project. It is not affiliated with, endorsed by, or maintained by HackerOne. "HackerOne" is a trademark of HackerOne, Inc. This project integrates with the documented HackerOne Hacker API.
 
-MCP server for HackerOne reports, programs, scope, earnings, profile data, report submission, triage comments, and report withdrawal.
+MCP server for the current HackerOne Hacker API: reports, programs, structured scope, scope exclusions, weaknesses, earnings, payouts, Hacktivity, Report Assistant intents/attachments, report submission, triage comments, and report withdrawal.
 
 ## Production endpoint
 
@@ -110,21 +110,42 @@ node dist/index.js
 | `list_programs` | List bug bounty programs you have access to |
 | `get_program_details` | Get program policy, response times, and metrics |
 | `get_program_scope` | Get in-scope assets for a program |
+| `get_program_scope_exclusions` | Get report categories explicitly excluded from rewards |
 | `get_program_weaknesses` | Get accepted CWE/weakness types for a program |
 | `get_earnings` | Get bounty earnings history |
+| `get_payouts` | Get payout history and status |
 | `get_hacker_profile` | Get HackerOne reputation, signal, impact, and rank |
 | `get_balance` | Get current unpaid bounty balance |
 | `analyze_report_patterns` | Analyze severity, state, program, and weakness patterns |
 | `search_disclosed_reports` | Search publicly disclosed HackerOne reports |
+| `list_report_intents` | List Report Assistant draft intents |
+| `get_report_intent` | Get a Report Assistant draft intent |
+| `list_report_intent_attachments` | List draft-intent attachments |
 
 ### Write
 
 | Tool | Description |
 |------|-------------|
-| `submit_report` | Submit a new vulnerability report |
+| `submit_report` | Submit a new vulnerability report (supports attachment IDs) |
+| `create_report_intent` | Create a Report Assistant draft when the program enables Report Assistant |
+| `update_report_intent` | Update a Report Assistant draft |
+| `submit_report_intent` | Submit a ready Report Assistant draft |
+| `delete_report_intent` | Delete a Report Assistant draft |
+| `upload_report_intent_attachments` | Upload base64-encoded files to a draft intent |
+| `delete_report_intent_attachment` | Delete a draft-intent attachment |
 | `add_comment` | Add a comment to one of your reports |
 | `close_report` | Withdraw/close one of your own reports |
 
+## API compatibility
+
+This repository is aligned with HackerOne Hacker API changes published through **September 15, 2026**.
+
+- `severity_rating` may be required by the destination program.
+- `submit_report` supports `attachment_ids`.
+- Report objects expose `submitted_at` and current HAI prioritization fields when HackerOne returns them.
+- Structured scope, scope exclusions, payouts, and the full Report Intents workflow are exposed.
+- The official HackerOne Hacker API still does **not** accept program-specific required custom-field values on `POST /hackers/reports`. The MCP detects that rejection and returns the required field names clearly instead of a generic 400.
+- Report Intents only work for programs that have HackerOne Report Assistant enabled.
 ## Security model
 
 - Remote ChatGPT access uses OAuth 2.1 + PKCE.
