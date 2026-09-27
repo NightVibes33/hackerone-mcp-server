@@ -587,6 +587,155 @@ export async function getProgramWeaknesses(handle: string, pageSize = 100) {
   return weaknesses;
 }
 
+// ── Get program scope exclusions ───────────────────────────────────
+export async function getProgramScopeExclusions(handle: string) {
+  const data = await h1Fetch(
+    `/hackers/programs/${encodeURIComponent(handle)}/scope_exclusions`,
+    { "page[size]": "100", "page[number]": "1" }
+  );
+  return (data.data ?? []).map((item: any) => ({
+    id: item.id,
+    category: item.attributes?.category ?? null,
+    details: item.attributes?.details ?? null,
+    created_at: item.attributes?.created_at ?? null,
+    updated_at: item.attributes?.updated_at ?? null,
+    attributes: item.attributes ?? {},
+  }));
+}
+
+// ── Get payouts ────────────────────────────────────────────────────
+export async function getPayouts(pageSize = 100, pageNumber = 1) {
+  const data = await h1Fetch("/hackers/payments/payouts", {
+    "page[size]": String(Math.max(1, Math.min(pageSize, 100))),
+    "page[number]": String(Math.max(1, pageNumber)),
+  });
+  return (data.data ?? []).map((p: any) => {
+    const attrs = p.attributes ?? p;
+    return {
+      id: p.id ?? null,
+      amount: attrs.amount ?? null,
+      paid_out_at: attrs.paid_out_at ?? null,
+      reference: attrs.reference ?? null,
+      payout_provider: attrs.payout_provider ?? null,
+      status: attrs.status ?? null,
+      attributes: attrs,
+    };
+  });
+}
+
+function mapReportIntent(item: any) {
+  const attrs = item?.attributes ?? {};
+  return {
+    id: item?.id ?? null,
+    title: attrs.title ?? null,
+    description: attrs.description ?? null,
+    state: attrs.state ?? null,
+    has_failing_jobs: attrs.has_failing_jobs ?? null,
+    has_canceled_jobs: attrs.has_canceled_jobs ?? null,
+    job_status_by_type: attrs.job_status_by_type ?? {},
+    metadata: attrs.metadata ?? {},
+    attributes: attrs,
+  };
+}
+
+// ── Report intents (HackerOne Report Assistant) ────────────────────
+export async function listReportIntents(pageSize = 25, pageNumber = 1) {
+  const data = await h1Fetch("/hackers/report_intents", {
+    "page[size]": String(Math.max(1, Math.min(pageSize, 100))),
+    "page[number]": String(Math.max(1, pageNumber)),
+  });
+  return (data.data ?? []).map(mapReportIntent);
+}
+
+export async function getReportIntent(id: string) {
+  const data = await h1Fetch(`/hackers/report_intents/${encodeURIComponent(id)}`);
+  return mapReportIntent(data.data);
+}
+
+export async function createReportIntent(teamHandle: string, description: string) {
+  const data = await h1Post("/hackers/report_intents", {
+    data: {
+      type: "report-intent",
+      attributes: { team_handle: teamHandle, description },
+    },
+  });
+  return mapReportIntent(data.data);
+}
+
+export async function updateReportIntent(id: string, description: string) {
+  const data = await h1Patch(`/hackers/report_intents/${encodeURIComponent(id)}`, {
+    data: {
+      type: "report-intent",
+      attributes: { description },
+    },
+  });
+  return mapReportIntent(data.data);
+}
+
+export async function deleteReportIntent(id: string) {
+  const data = await h1Delete(`/hackers/report_intents/${encodeURIComponent(id)}`);
+  return data.data ? mapReportIntent(data.data) : { id, deleted: true };
+}
+
+export async function submitReportIntent(id: string) {
+  const data = await h1Post(`/hackers/report_intents/${encodeURIComponent(id)}/submit`, {});
+  const report = data.data ?? data;
+  return {
+    id: report?.id ?? id,
+    type: report?.type ?? null,
+    state: report?.attributes?.state ?? null,
+    title: report?.attributes?.title ?? null,
+    url: report?.type === "report" && report?.id ? `https://hackerone.com/reports/${report.id}` : null,
+    data: report,
+  };
+}
+
+export async function listReportIntentAttachments(reportIntentId: string) {
+  const data = await h1Fetch(`/hackers/report_intents/${encodeURIComponent(reportIntentId)}/attachments`);
+  return (data.data ?? []).map((a: any) => ({
+    id: a.id,
+    file_name: a.attributes?.file_name ?? null,
+    content_type: a.attributes?.content_type ?? null,
+    file_size: a.attributes?.file_size ?? null,
+    expiring_url: a.attributes?.expiring_url ?? null,
+    created_at: a.attributes?.created_at ?? null,
+  }));
+}
+
+export async function uploadReportIntentAttachments(
+  reportIntentId: string,
+  files: Array<{ file_name: string; content_type?: string; base64_data: string }>
+) {
+  if (!files.length) throw new Error("At least one attachment is required.");
+  const data = await h1PostForm(
+    `/hackers/report_intents/${encodeURIComponent(reportIntentId)}/attachments`,
+    files
+  );
+  const items = Array.isArray(data.data) ? data.data : data.data ? [data.data] : [];
+  return items.map((a: any) => ({
+    id: a.id,
+    file_name: a.attributes?.file_name ?? null,
+    content_type: a.attributes?.content_type ?? null,
+    file_size: a.attributes?.file_size ?? null,
+    expiring_url: a.attributes?.expiring_url ?? null,
+    created_at: a.attributes?.created_at ?? null,
+  }));
+}
+
+export async function deleteReportIntentAttachment(
+  reportIntentId: string,
+  attachmentId: string
+) {
+  const data = await h1Delete(
+    `/hackers/report_intents/${encodeURIComponent(reportIntentId)}/attachments/${encodeURIComponent(attachmentId)}`
+  );
+  return data.data ?? {
+    report_intent_id: reportIntentId,
+    attachment_id: attachmentId,
+    deleted: true,
+  };
+}
+
 // ── Get earnings ──────────────────────────────────────────────────
 export async function getEarnings(pageSize = 100) {
   const data = await h1Fetch("/hackers/payments/earnings", {
