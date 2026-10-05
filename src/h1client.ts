@@ -1153,18 +1153,31 @@ export async function hackerOneApiRequest(opts: {
   const text = await res.text();
   let payload: any = text;
   try { payload = text ? JSON.parse(text) : {}; } catch {}
-  if (!res.ok) throw new Error(
-    `HackerOne API error ${res.status}: ${typeof payload === "string" ? payload : JSON.stringify(payload)}`
-  );
+
+  const rateLimit = {
+    limit: res.headers.get("x-ratelimit-limit"),
+    remaining: res.headers.get("x-ratelimit-remaining"),
+    reset: res.headers.get("x-ratelimit-reset"),
+    retry_after: res.headers.get("retry-after"),
+  };
+  const requestId = res.headers.get("x-request-id");
+
+  if (!res.ok) {
+    return {
+      ok: false as const,
+      status: res.status,
+      error: payload,
+      request_id: requestId,
+      rate_limit: rateLimit,
+    };
+  }
+
   if (method !== "GET") cache.clear();
   return {
+    ok: true as const,
     status: res.status,
     data: payload,
-    rate_limit: {
-      limit: res.headers.get("x-ratelimit-limit"),
-      remaining: res.headers.get("x-ratelimit-remaining"),
-      reset: res.headers.get("x-ratelimit-reset"),
-      retry_after: res.headers.get("retry-after"),
-    },
+    request_id: requestId,
+    rate_limit: rateLimit,
   };
 }
