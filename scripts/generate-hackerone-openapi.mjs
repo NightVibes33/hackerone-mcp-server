@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
 
-const URL = "https://hackerone.com/api-docs/v1/customers/swagger.json";
+const SPEC_URL = "https://hackerone.com/api-docs/v1/customers/swagger.json";
 const OUT = new URL("../src/customer-openapi.generated.ts", import.meta.url);
 
-const res = await fetch(URL, { headers: { accept: "application/json", "user-agent": "hackerone-mcp-server-openapi-sync/3.0" } });
+const res = await fetch(SPEC_URL, { headers: { accept: "application/json", "user-agent": "hackerone-mcp-server-openapi-sync/3.0" } });
 if (!res.ok) throw new Error(`Failed to fetch HackerOne Customer OpenAPI: ${res.status} ${res.statusText}`);
 const spec = await res.json();
 if (!String(spec.openapi || "").startsWith("3.")) throw new Error(`Expected OpenAPI 3.x, got ${spec.openapi}`);
@@ -18,7 +18,7 @@ if (operations !== 152) {
 }
 
 const source = `// GENERATED from HackerOne's published Customer OpenAPI 3.x document.
-// Source: ${URL}
+// Source: ${SPEC_URL}
 // Do not hand-edit. npm build refreshes and validates the operation count.
 export const CUSTOMER_OPENAPI_SPEC: any = ${JSON.stringify(spec, null, 2)};
 export const CUSTOMER_OPENAPI_OPERATION_COUNT = ${operations};
