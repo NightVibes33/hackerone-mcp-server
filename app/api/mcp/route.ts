@@ -30,6 +30,7 @@ import {
   hackerOneApiRequest,
 } from "../../../src/h1client";
 import { runWithHackerOneCredentials } from "../../../src/request-auth";
+import { H1_OPERATIONS } from "../../../src/h1operations";
 import {
   resolveAccessToken,
   OAUTH_RESOURCE,
@@ -101,34 +102,43 @@ function registerH1Tool<T extends ToolShape>(
 const handler = createMcpHandler(
   (server) => {
 
-registerH1Tool(server,
-  "hackerone_api_request",
-  "Access a documented HackerOne API v1 resource beyond the dedicated convenience tools. The connected HackerOne account's normal permissions apply.",
-  {
-    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
-    path: z.string(),
-    query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), z.number()]))])).optional(),
-    body: z.any().optional(),
-    multipart_files: z.array(z.object({
-      field_name: z.string().optional().describe("Multipart field name; defaults to files[]"),
+// ── First-class documented HackerOne operations ───────────────────
+for (const op of H1_OPERATIONS) {
+  const pathParamNames = Array.from(op.path.matchAll(/\{([^}]+)\}/g), (m) => m[1]);
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const p of pathParamNames) shape[p] = z.string().describe(`Path parameter ${p}`);
+  shape.query = z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), z.number()]))])).optional()
+    .describe("Only query parameters documented for this HackerOne operation.");
+  if (op.multipart) {
+    shape.files = z.array(z.object({
+      field_name: z.string().optional(),
       file_name: z.string().min(1),
       content_type: z.string().optional(),
       base64_data: z.string().min(1),
-    })).optional().describe("Multipart uploads for documented file/attachment/import endpoints"),
-    form_fields: z.record(z.string(), z.string()).optional().describe("Additional multipart form fields"),
-  },
-  async (params) => {
-    try {
-      const result = await hackerOneApiRequest(params as any);
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        isError: result.ok === false,
-      };
-    } catch (err: any) {
-      return toolError(err);
-    }
+    })).optional();
+    shape.form_fields = z.record(z.string(), z.string()).optional();
+  } else if (op.method !== "GET" && op.method !== "DELETE") {
+    shape.body = z.any().optional().describe("JSON:API body documented for this HackerOne operation.");
   }
-);
+  registerH1Tool(server, op.name, `${op.title} — ${op.method} ${op.path}. This is a fixed first-class HackerOne API operation.`, shape, async (params: any) => {
+    try {
+      let resolvedPath = op.path;
+      for (const p of pathParamNames) {
+        if (params[p] == null || params[p] === "") throw new Error(`Missing required path parameter: ${p}`);
+        resolvedPath = resolvedPath.replace(`{${p}}`, encodeURIComponent(String(params[p])));
+      }
+      const result = await hackerOneApiRequest({
+        method: op.method,
+        path: resolvedPath,
+        query: params.query,
+        body: params.body,
+        multipart_files: params.files,
+        form_fields: params.form_fields,
+      } as any);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }], isError: result.ok === false };
+    } catch (err: any) { return toolError(err); }
+  });
+}
 
 // ── Tool: search_reports ───────────────────────────────────────────
 registerH1Tool(server, 
