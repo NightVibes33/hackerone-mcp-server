@@ -24,10 +24,7 @@ import {
   uploadReportIntentAttachments,
   deleteReportIntentAttachment,
   submitReport,
-  addComment,
-  closeReport,
   searchDisclosedReports,
-  hackerOneApiRequest,
 } from "../../../src/h1client";
 import { runWithHackerOneCredentials } from "../../../src/request-auth";
 import { registerCustomerOpenApiTools } from "../../../src/customer-openapi-tools";
@@ -725,63 +722,6 @@ registerH1Tool(server,
   async (params) => {
     try {
       const result = await submitReport(params);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (err: any) {
-      return toolError(err);
-    }
-  }
-);
-
-// ── Tool: add_comment ─────────────────────────────────────────────
-registerH1Tool(server, 
-  "add_comment",
-  "Add a comment to an existing HackerOne report. Use this to respond to triage questions or provide additional information.",
-  {
-    report_id: z.string().describe("The HackerOne report ID"),
-    message: z.string().describe("Comment text (supports markdown)"),
-    internal: z
-      .boolean()
-      .optional()
-      .describe("If true, comment is only visible to the team (default false)"),
-  },
-  async ({ report_id, message, internal }) => {
-    try {
-      const result = await addComment(report_id, message, internal ?? false);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (err: any) {
-      return toolError(err);
-    }
-  }
-);
-
-// ── Tool: close_report ────────────────────────────────────────────
-registerH1Tool(server, 
-  "close_report",
-  "Withdraw/close one of your own HackerOne reports. Sends a close request with an optional message.",
-  {
-    report_id: z.string().describe("The HackerOne report ID to close"),
-    message: z
-      .string()
-      .optional()
-      .describe("Reason for closing (default: 'Withdrawing this report.')"),
-  },
-  async ({ report_id, message }) => {
-    try {
-      const result = await closeReport(report_id, message);
       return {
         content: [
           {
