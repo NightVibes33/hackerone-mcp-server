@@ -13,8 +13,8 @@
     "dev": "next dev",
     "start": "next start",
     "build:cli": "tsc -p tsconfig.cli.json",
-    "prebuild": "node scripts/generate-hackerone-openapi.mjs",
-    "prebuild:cli": "node scripts/generate-hackerone-openapi.mjs"
+    "prebuild": "node scripts/generate-hackerone-openapi.mjs && node scripts/validate-hacker-contract.mjs",
+    "prebuild:cli": "node scripts/generate-hackerone-openapi.mjs && node scripts/validate-hacker-contract.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.1",

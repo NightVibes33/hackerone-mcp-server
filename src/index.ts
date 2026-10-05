@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { registerCustomerOpenApiTools } from "./customer-openapi-tools.js";
+import { registerHackerExactTools } from "./hacker-exact-tools.js";
 import {
   searchReports,
   getReport,
@@ -28,15 +29,24 @@ import {
   uploadReportIntentAttachments,
   deleteReportIntentAttachment,
   submitReport,
-  addComment,
-  closeReport,
   searchDisclosedReports,
-  hackerOneApiRequest,
 } from "./h1client.js";
 
 const server = new McpServer({
   name: "hackerone",
   version: "3.0.0",
+});
+
+// ── Exact first-class Hacker API operations from HackerOne Hacker Resources ──
+registerHackerExactTools((name, description, shape, fn) => {
+  server.tool(name, description, shape, async (params:any) => {
+    try {
+      const result = await fn(params);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }], isError: result?.ok === false };
+    } catch (err:any) {
+      return { content: [{ type: "text" as const, text: JSON.stringify({ error: err?.message ?? String(err) }, null, 2) }], isError: true };
+    }
+  });
 });
 
 // ── Exact first-class Customer API operations from HackerOne OpenAPI ──
@@ -700,69 +710,6 @@ server.tool(
   async (params) => {
     try {
       const result = await submitReport(params);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// ── Tool: add_comment ─────────────────────────────────────────────
-server.tool(
-  "add_comment",
-  "Add a comment to an existing HackerOne report. Use this to respond to triage questions or provide additional information.",
-  {
-    report_id: z.string().describe("The HackerOne report ID"),
-    message: z.string().describe("Comment text (supports markdown)"),
-    internal: z
-      .boolean()
-      .optional()
-      .describe("If true, comment is only visible to the team (default false)"),
-  },
-  async ({ report_id, message, internal }) => {
-    try {
-      const result = await addComment(report_id, message, internal ?? false);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (err: any) {
-      return {
-        content: [{ type: "text" as const, text: `Error: ${err.message}` }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// ── Tool: close_report ────────────────────────────────────────────
-server.tool(
-  "close_report",
-  "Withdraw/close one of your own HackerOne reports. Sends a close request with an optional message.",
-  {
-    report_id: z.string().describe("The HackerOne report ID to close"),
-    message: z
-      .string()
-      .optional()
-      .describe("Reason for closing (default: 'Withdrawing this report.')"),
-  },
-  async ({ report_id, message }) => {
-    try {
-      const result = await closeReport(report_id, message);
       return {
         content: [
           {

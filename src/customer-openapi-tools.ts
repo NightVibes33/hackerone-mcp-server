@@ -49,8 +49,8 @@ function zodFromSchema(input:any): z.ZodTypeAny {
         shape[k]=required.has(k)?child:child.optional();
       }
       out=z.object(shape);
-      if(s.additionalProperties===true) out=(out as z.ZodObject<any>).catchall(z.any());
-      else if(s.additionalProperties && typeof s.additionalProperties==="object") out=(out as z.ZodObject<any>).catchall(zodFromSchema(s.additionalProperties));
+      if(s.additionalProperties && typeof s.additionalProperties==="object") out=(out as z.ZodObject<any>).catchall(zodFromSchema(s.additionalProperties));
+      else if(s.additionalProperties!==false) out=(out as z.ZodObject<any>).passthrough();
       break;
     }
     case "string":
@@ -68,6 +68,9 @@ function zodFromSchema(input:any): z.ZodTypeAny {
   if(typeof s.maximum==="number" && out instanceof z.ZodNumber) out=out.max(s.maximum);
   if(typeof s.minLength==="number" && out instanceof z.ZodString) out=out.min(s.minLength);
   if(typeof s.maxLength==="number" && out instanceof z.ZodString) out=out.max(s.maxLength);
+  if(typeof s.pattern==="string" && out instanceof z.ZodString) out=out.regex(new RegExp(s.pattern));
+  if(typeof s.minItems==="number" && out instanceof z.ZodArray) out=out.min(s.minItems);
+  if(typeof s.maxItems==="number" && out instanceof z.ZodArray) out=out.max(s.maxItems);
   if(s.nullable) out=out.nullable();
   return out;
 }
@@ -92,14 +95,14 @@ export function registerCustomerOpenApiTools(register:Register){
       const op=item?.[method]; if(!op) continue;
       count++;
       const shape:Record<string,z.ZodTypeAny>={};
-      const params=[...(item.parameters||[]),...(op.parameters||[])].map(resolveParameter);
-      for(const p of params){
+      const parameters=[...(item.parameters||[]),...(op.parameters||[])].map(resolveParameter);
+      for(const p of parameters){
         if(!p?.name || !["path","query"].includes(p.in)) continue;
         let zs=zodFromSchema(p.schema||{type:p.type||"string"});
         if(p.description) zs=zs.describe(p.description);
         shape[p.name]=p.required?zs:zs.optional();
       }
-      const bodyParam=params.find((p:any)=>p?.in==="body");
+      const bodyParam=parameters.find((p:any)=>p?.in==="body");
       const rb=op.requestBody;
       let bodySchema:any=bodyParam?.schema;
       let contentType="application/json";
@@ -122,23 +125,26 @@ export function registerCustomerOpenApiTools(register:Register){
         }
       }
       const name=toolName(method,path);
+      const successResponse = Object.entries<any>(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1];
+      const responseContent = successResponse?.content || {};
+      const accept = Object.keys(responseContent)[0] || "application/json";
       const description=[op.summary,op.description,`${method.toUpperCase()} ${path}`].filter(Boolean).join("\n\n");
-      register(name,description,shape,async(params:any)=>{
+      register(name,description,shape,async(input:any)=>{
         let resolvedPath=path;
         const query:Record<string,any>={};
-        for(const p of params){
+        for(const p of parameters){
           if(p.in==="path"){
-            if(params[p.name]===undefined) throw new Error(`Missing required path parameter ${p.name}`);
-            resolvedPath=resolvedPath.replace(`{${p.name}}`,encodeURIComponent(String(params[p.name])));
-          } else if(p.in==="query" && params[p.name]!==undefined) query[p.name]=params[p.name];
+            if(input[p.name]===undefined) throw new Error(`Missing required path parameter ${p.name}`);
+            resolvedPath=resolvedPath.replace(`{${p.name}}`,encodeURIComponent(String(input[p.name])));
+          } else if(p.in==="query" && input[p.name]!==undefined) query[p.name]=input[p.name];
         }
         let body:any=undefined;
         if(bodySchema){
           const rs=deref(bodySchema);
           if(rs.type==="object" && rs.properties){
             body={};
-            for(const k of Object.keys(rs.properties)) if(params[k]!==undefined) body[k]=params[k];
-          } else body=params.data;
+            for(const k of Object.keys(rs.properties)) if(input[k]!==undefined) body[k]=input[k];
+          } else body=input.data;
         }
         // Customer OpenAPI file endpoints are represented by exact schema fields.
         // Binary string inputs are transported as documented multipart form fields.
@@ -152,9 +158,9 @@ export function registerCustomerOpenApiTools(register:Register){
               for(const x of v) files.push({field_name:k,file_name:x.file_name||"upload.bin",content_type:x.content_type,base64_data:x.base64_data});
             } else formFields[k]=typeof v==="string"?v:JSON.stringify(v);
           }
-          return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,multipart_files:files,form_fields:formFields});
+          return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,multipart_files:files,form_fields:formFields,accept});
         }
-        return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,body});
+        return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,body,accept,content_type:contentType});
       });
     }
   }

@@ -17,6 +17,57 @@ if (operations !== 152) {
   throw new Error(`HackerOne Customer OpenAPI drift detected: expected 152 documented operations, received ${operations}. Review docs before deployment.`);
 }
 
+const requiredOperations = [
+  ["post", "/reports/{id}/severities"],
+  ["post", "/reports/{id}/state_changes"],
+  ["post", "/reports/{id}/issue_tracker_reference_id"],
+  ["put", "/programs/{program_id}/swag/{id}"],
+];
+for (const [method, path] of requiredOperations) {
+  if (!spec.paths?.[path]?.[method]) {
+    throw new Error(`Official Customer OpenAPI is missing required documented operation ${method.toUpperCase()} ${path}`);
+  }
+}
+
+const toolName = (method, path) => {
+  const slug = path.replace(/[{}]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "").toLowerCase();
+  return `customer_${method}_${slug}`.slice(0, 120);
+};
+const generatedNames = [];
+for (const [path, item] of Object.entries(spec.paths || {})) {
+  for (const method of methods) {
+    if (item?.[method]) generatedNames.push(toolName(method, path));
+  }
+}
+if (new Set(generatedNames).size !== generatedNames.length) {
+  throw new Error("Customer OpenAPI tool-name collision detected; refusing to deploy ambiguous first-class tools.");
+}
+
+for (const [path, item] of Object.entries(spec.paths || {})) {
+  for (const method of methods) {
+    const op = item?.[method];
+    if (!op) continue;
+    const parameters = [...(item.parameters || []), ...(op.parameters || [])];
+    for (const parameter of parameters) {
+      const resolved = parameter?.$ref
+        ? parameter.$ref.replace(/^#\//, "").split("/").reduce((cur, key) => cur?.[key], spec)
+        : parameter;
+      if (resolved?.in && !["path", "query"].includes(resolved.in)) {
+        throw new Error(`Unsupported documented parameter location ${resolved.in} at ${method.toUpperCase()} ${path}`);
+      }
+    }
+    const requestTypes = Object.keys(op.requestBody?.content || {});
+    if (requestTypes.length > 1) {
+      throw new Error(`Multiple documented request media types require explicit modeling at ${method.toUpperCase()} ${path}: ${requestTypes.join(", ")}`);
+    }
+    const success = Object.entries(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1];
+    const responseTypes = Object.keys(success?.content || {});
+    if (responseTypes.length > 1) {
+      throw new Error(`Multiple documented success media types require explicit modeling at ${method.toUpperCase()} ${path}: ${responseTypes.join(", ")}`);
+    }
+  }
+}
+
 const source = `// GENERATED from HackerOne's published Customer OpenAPI 3.x document.
 // Source: ${SPEC_URL}
 // Do not hand-edit. npm build refreshes and validates the operation count.
