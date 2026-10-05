@@ -704,16 +704,25 @@ export async function getPayouts(pageSize = 100, pageNumber = 1) {
 
 function mapReportIntent(item: any) {
   const attrs = item?.attributes ?? {};
+  const relationships = item?.relationships ?? {};
   return {
     id: item?.id ?? null,
+    type: item?.type ?? "report-intent",
     title: attrs.title ?? null,
     description: attrs.description ?? null,
+    // HackerOne may add states without a global API version bump. Preserve the
+    // server value verbatim rather than constraining it to the documented enum.
     state: attrs.state ?? null,
     has_failing_jobs: attrs.has_failing_jobs ?? null,
     has_canceled_jobs: attrs.has_canceled_jobs ?? null,
     job_status_by_type: attrs.job_status_by_type ?? {},
     metadata: attrs.metadata ?? {},
+    program: relationships.program?.data ?? null,
+    report: relationships.report?.data ?? null,
+    attachments: relationships.attachments?.data ?? [],
+    relationships,
     attributes: attrs,
+    raw: item,
   };
 }
 
@@ -1135,49 +1144,73 @@ export async function hackerOneApiRequest(opts: {
   if (!opts.path.startsWith("/") || opts.path.includes("://") || opts.path.includes("..")) {
     throw new Error("path must be a relative HackerOne v1 API path beginning with /");
   }
+
   const url = new URL(`${H1_BASE}${opts.path}`);
   for (const [key, raw] of Object.entries(opts.query ?? {})) {
     for (const value of (Array.isArray(raw) ? raw : [raw])) {
       url.searchParams.append(key, String(value));
     }
   }
-  const res = await fetch(url.toString(), {
-    method,
-    headers: {
-      Authorization: `Basic ${getAuth()}`,
-      Accept: "application/json",
-      ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
-    },
-    ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
-  });
-  const text = await res.text();
-  let payload: any = text;
-  try { payload = text ? JSON.parse(text) : {}; } catch {}
 
-  const rateLimit = {
-    limit: res.headers.get("x-ratelimit-limit"),
-    remaining: res.headers.get("x-ratelimit-remaining"),
-    reset: res.headers.get("x-ratelimit-reset"),
-    retry_after: res.headers.get("retry-after"),
-  };
-  const requestId = res.headers.get("x-request-id");
+  let lastNetworkError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url.toString(), {
+        method,
+        headers: {
+          Authorization: `Basic ${getAuth()}`,
+          Accept: "application/json",
+          ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+      });
 
-  if (!res.ok) {
-    return {
-      ok: false as const,
-      status: res.status,
-      error: payload,
-      request_id: requestId,
-      rate_limit: rateLimit,
-    };
+      const text = await res.text();
+      let payload: any = text;
+      try { payload = text ? JSON.parse(text) : {}; } catch {}
+
+      const rateLimit = {
+        limit: res.headers.get("x-ratelimit-limit"),
+        remaining: res.headers.get("x-ratelimit-remaining"),
+        reset: res.headers.get("x-ratelimit-reset"),
+        retry_after: res.headers.get("retry-after"),
+      };
+      const requestId = res.headers.get("x-request-id");
+
+      if (res.status === 429 && attempt < 2) {
+        const retrySeconds = Number(rateLimit.retry_after);
+        await sleep(Number.isFinite(retrySeconds) && retrySeconds > 0 ? retrySeconds * 1000 : 1000 * Math.pow(2, attempt + 1));
+        continue;
+      }
+
+      if (!res.ok) {
+        return {
+          ok: false as const,
+          status: res.status,
+          error: payload,
+          request_id: requestId,
+          rate_limit: rateLimit,
+        };
+      }
+
+      if (method !== "GET") cache.clear();
+      return {
+        ok: true as const,
+        status: res.status,
+        data: payload,
+        request_id: requestId,
+        rate_limit: rateLimit,
+      };
+    } catch (error) {
+      lastNetworkError = error;
+      if (attempt < 2) {
+        await sleep(1000 * Math.pow(2, attempt + 1));
+        continue;
+      }
+    }
   }
 
-  if (method !== "GET") cache.clear();
-  return {
-    ok: true as const,
-    status: res.status,
-    data: payload,
-    request_id: requestId,
-    rate_limit: rateLimit,
-  };
+  throw lastNetworkError instanceof Error
+    ? lastNetworkError
+    : new Error("HackerOne API request failed after retries");
 }
