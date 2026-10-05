@@ -212,13 +212,28 @@ async function h1Delete(path: string): Promise<any> {
   return text ? JSON.parse(text) : {};
 }
 
+function decodeCanonicalBase64(value: string, label: string): Buffer {
+  if (
+    !value ||
+    value.length % 4 !== 0 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)
+  ) {
+    throw new Error(`Invalid Base64 data for ${label}`);
+  }
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.toString("base64") !== value) {
+    throw new Error(`Non-canonical Base64 data for ${label}`);
+  }
+  return bytes;
+}
+
 async function h1PostForm(
   path: string,
   files: Array<{ file_name: string; content_type?: string; base64_data: string }>
 ): Promise<any> {
   const form = new FormData();
   for (const file of files) {
-    const bytes = Buffer.from(file.base64_data, "base64");
+    const bytes = decodeCanonicalBase64(file.base64_data, `multipart file ${file.file_name}`);
     const blob = new Blob([bytes], {
       type: file.content_type || "application/octet-stream",
     });
@@ -1115,18 +1130,7 @@ export async function hackerOneApiRequest(opts: {
     const form = new FormData();
     for (const [key, value] of Object.entries(opts.form_fields ?? {})) form.append(key, value);
     for (const file of opts.multipart_files ?? []) {
-      const encoded = file.base64_data;
-      if (
-        !encoded ||
-        encoded.length % 4 !== 0 ||
-        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)
-      ) {
-        throw new Error(`Invalid Base64 data for multipart file ${file.file_name}`);
-      }
-      const bytes = Buffer.from(encoded, "base64");
-      if (bytes.toString("base64") !== encoded) {
-        throw new Error(`Non-canonical Base64 data for multipart file ${file.file_name}`);
-      }
+      const bytes = decodeCanonicalBase64(file.base64_data, `multipart file ${file.file_name}`);
       const blob = new Blob([bytes], { type: file.content_type || "application/octet-stream" });
       form.append(file.field_name || "files[]", blob, file.file_name);
     }
