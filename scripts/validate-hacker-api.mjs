@@ -63,4 +63,20 @@ for (const source of [client, remote, stdio]) {
 if (!client.includes("submitted_at")) throw new Error("Report mapping must preserve documented submitted_at");
 if (!client.includes("attributes: a.attributes")) throw new Error("Activity mapping must preserve additive activity attributes such as first_to_agree");
 
+// searchReports is an MCP convenience layer over GET /hackers/me/reports.
+// HackerOne documents only page[number] and page[size] for that endpoint;
+// all convenience filtering and ordering must remain local.
+for (const guessed of ['filter[program][]', 'filter[severity][]', 'filter[state][]']) {
+  if (client.includes(guessed)) throw new Error(`Undocumented Hacker Reports query parameter reintroduced: ${guessed}`);
+}
+if (!client.includes("r.attributes.severity_rating ?? relationshipSeverity ?? null")) {
+  throw new Error("Report severity must prefer documented severity_rating with relationship fallback");
+}
+if (!client.includes("r.weakness") || !client.includes("r._impact")) {
+  throw new Error("Report keyword search must include weakness and impact");
+}
+if (!client.includes('opts.sort') || !client.includes('.split(",")')) {
+  throw new Error("Existing searchReports sort option must be implemented locally, including multi-field values");
+}
+
 console.log(`Validated ${documentedTools.length} documented Hacker API operations on remote + stdio surfaces.`);
