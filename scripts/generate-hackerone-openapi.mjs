@@ -58,11 +58,34 @@ for (const [path, item] of Object.entries(spec.paths || {})) {
       if (resolved?.in && !["path", "query"].includes(resolved.in)) {
         throw new Error(`Unsupported documented parameter location ${resolved.in} at ${method.toUpperCase()} ${path}`);
       }
+      if (resolved?.content && Object.keys(resolved.content).length > 1) {
+        throw new Error(`Multiple parameter media types require explicit modeling at ${method.toUpperCase()} ${path}: ${resolved.name}`);
+      }
+      const parameterSchema = resolveRef(
+        resolved?.schema || (resolved?.content ? Object.values(resolved.content)[0]?.schema : undefined)
+      );
+      if (resolved?.in === "query") {
+        const style = resolved.style ?? "form";
+        const explode = resolved.explode ?? true;
+        if (style !== "form" || explode !== true) {
+          throw new Error(`Unsupported query serialization ${style}/explode=${explode} at ${method.toUpperCase()} ${path}: ${resolved.name}`);
+        }
+        if (parameterSchema?.type === "object" || (parameterSchema?.type === "array" && resolveRef(parameterSchema.items)?.type === "object")) {
+          throw new Error(`Object-valued query parameter requires explicit serializer at ${method.toUpperCase()} ${path}: ${resolved.name}`);
+        }
+      }
+      if (resolved?.in === "path" && ["array", "object"].includes(parameterSchema?.type)) {
+        throw new Error(`Non-primitive path parameter requires explicit serializer at ${method.toUpperCase()} ${path}: ${resolved.name}`);
+      }
     }
     const requestBody = resolveRef(op.requestBody);
     const requestTypes = Object.keys(requestBody?.content || {});
     if (requestTypes.length > 1) {
       throw new Error(`Multiple documented request media types require explicit modeling at ${method.toUpperCase()} ${path}: ${requestTypes.join(", ")}`);
+    }
+    const requestMedia = requestTypes[0] ? requestBody?.content?.[requestTypes[0]] : undefined;
+    if (requestMedia?.encoding && Object.keys(requestMedia.encoding).length) {
+      throw new Error(`Multipart/request encoding requires explicit modeling at ${method.toUpperCase()} ${path}`);
     }
     const success = resolveRef(Object.entries(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1]);
     const responseTypes = Object.keys(success?.content || {});
