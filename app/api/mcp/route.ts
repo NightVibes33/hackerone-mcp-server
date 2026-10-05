@@ -105,7 +105,7 @@ registerH1Tool(server,
   "hackerone_api_request",
   "Access a documented HackerOne API v1 resource beyond the dedicated convenience tools. The connected HackerOne account's normal permissions apply.",
   {
-    method: z.enum(["GET", "POST", "PATCH", "DELETE"]).optional(),
+    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
     path: z.string(),
     query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), z.number()]))])).optional(),
     body: z.any().optional(),
