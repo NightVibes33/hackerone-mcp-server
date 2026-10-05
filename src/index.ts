@@ -43,7 +43,7 @@ server.tool(
   "hackerone_api_request",
   "Call any documented HackerOne API v1 endpoint with the connected HackerOne credentials. Covers the complete Hacker API and Customer API beyond the dedicated convenience tools; HackerOne enforces account permissions.",
   {
-    method: z.enum(["GET", "POST", "PATCH", "DELETE"]).optional(),
+    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
     path: z.string().describe("Relative HackerOne v1 path beginning with /"),
     query: z.record(z.string(), z.union([
       z.string(), z.number(), z.boolean(),
