@@ -1,9 +1,10 @@
 import fs from "node:fs/promises";
 
-const [client, remote, stdio] = await Promise.all([
+const [client, remote, stdio, customerTools] = await Promise.all([
   fs.readFile(new URL("../src/h1client.ts", import.meta.url), "utf8"),
   fs.readFile(new URL("../app/api/mcp/route.ts", import.meta.url), "utf8"),
   fs.readFile(new URL("../src/index.ts", import.meta.url), "utf8"),
+  fs.readFile(new URL("../src/customer-openapi-tools.ts", import.meta.url), "utf8"),
 ]);
 
 const documentedTools = [
@@ -77,6 +78,28 @@ if (!client.includes("r.weakness") || !client.includes("r._impact")) {
 }
 if (!client.includes('opts.sort') || !client.includes('.split(",")')) {
   throw new Error("Existing searchReports sort option must be implemented locally, including multi-field values");
+}
+if (!client.includes('bytes.toString("base64") !== encoded')) {
+  throw new Error("Multipart transport must reject malformed/non-canonical Base64");
+}
+for (const required of [
+  "parameterDefs",
+  "usedToolNames",
+  "Customer MCP tool-name collision",
+  "minItems",
+  "maxItems",
+  "uniqueItems",
+  "minProperties",
+  "maxProperties",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "multipleOf",
+  "new RegExp(s.pattern)",
+]) {
+  if (!customerTools.includes(required)) throw new Error(`Customer OpenAPI schema fidelity guard missing: ${required}`);
+}
+if (customerTools.includes("for(const p of params)")) {
+  throw new Error("Generated Customer handler must iterate parameter definitions, not handler input values");
 }
 
 console.log(`Validated ${documentedTools.length} documented Hacker API operations on remote + stdio surfaces.`);
