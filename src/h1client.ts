@@ -704,16 +704,25 @@ export async function getPayouts(pageSize = 100, pageNumber = 1) {
 
 function mapReportIntent(item: any) {
   const attrs = item?.attributes ?? {};
+  const relationships = item?.relationships ?? {};
   return {
     id: item?.id ?? null,
+    type: item?.type ?? "report-intent",
     title: attrs.title ?? null,
     description: attrs.description ?? null,
+    // HackerOne may add states without a global API version bump. Preserve the
+    // server value verbatim rather than constraining it to the documented enum.
     state: attrs.state ?? null,
     has_failing_jobs: attrs.has_failing_jobs ?? null,
     has_canceled_jobs: attrs.has_canceled_jobs ?? null,
     job_status_by_type: attrs.job_status_by_type ?? {},
     metadata: attrs.metadata ?? {},
+    program: relationships.program?.data ?? null,
+    report: relationships.report?.data ?? null,
+    attachments: relationships.attachments?.data ?? [],
+    relationships,
     attributes: attrs,
+    raw: item,
   };
 }
 
