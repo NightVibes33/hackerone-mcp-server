@@ -95,14 +95,14 @@ export function registerCustomerOpenApiTools(register:Register){
       const op=item?.[method]; if(!op) continue;
       count++;
       const shape:Record<string,z.ZodTypeAny>={};
-      const params=[...(item.parameters||[]),...(op.parameters||[])].map(resolveParameter);
-      for(const p of params){
+      const parameters=[...(item.parameters||[]),...(op.parameters||[])].map(resolveParameter);
+      for(const p of parameters){
         if(!p?.name || !["path","query"].includes(p.in)) continue;
         let zs=zodFromSchema(p.schema||{type:p.type||"string"});
         if(p.description) zs=zs.describe(p.description);
         shape[p.name]=p.required?zs:zs.optional();
       }
-      const bodyParam=params.find((p:any)=>p?.in==="body");
+      const bodyParam=parameters.find((p:any)=>p?.in==="body");
       const rb=op.requestBody;
       let bodySchema:any=bodyParam?.schema;
       let contentType="application/json";
@@ -129,22 +129,22 @@ export function registerCustomerOpenApiTools(register:Register){
       const responseContent = successResponse?.content || {};
       const accept = Object.keys(responseContent)[0] || "application/json";
       const description=[op.summary,op.description,`${method.toUpperCase()} ${path}`].filter(Boolean).join("\n\n");
-      register(name,description,shape,async(params:any)=>{
+      register(name,description,shape,async(input:any)=>{
         let resolvedPath=path;
         const query:Record<string,any>={};
-        for(const p of params){
+        for(const p of parameters){
           if(p.in==="path"){
-            if(params[p.name]===undefined) throw new Error(`Missing required path parameter ${p.name}`);
-            resolvedPath=resolvedPath.replace(`{${p.name}}`,encodeURIComponent(String(params[p.name])));
-          } else if(p.in==="query" && params[p.name]!==undefined) query[p.name]=params[p.name];
+            if(input[p.name]===undefined) throw new Error(`Missing required path parameter ${p.name}`);
+            resolvedPath=resolvedPath.replace(`{${p.name}}`,encodeURIComponent(String(input[p.name])));
+          } else if(p.in==="query" && input[p.name]!==undefined) query[p.name]=input[p.name];
         }
         let body:any=undefined;
         if(bodySchema){
           const rs=deref(bodySchema);
           if(rs.type==="object" && rs.properties){
             body={};
-            for(const k of Object.keys(rs.properties)) if(params[k]!==undefined) body[k]=params[k];
-          } else body=params.data;
+            for(const k of Object.keys(rs.properties)) if(input[k]!==undefined) body[k]=input[k];
+          } else body=input.data;
         }
         // Customer OpenAPI file endpoints are represented by exact schema fields.
         // Binary string inputs are transported as documented multipart form fields.
