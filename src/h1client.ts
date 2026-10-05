@@ -75,7 +75,7 @@ async function h1Fetch(
       const res = await fetch(url.toString(), {
         headers: {
           Authorization: `Basic ${getAuth()}`,
-          Accept: opts.accept ?? "application/json",
+          Accept: "application/json",
         },
       });
 
@@ -996,7 +996,7 @@ export async function hackerOneApiRequest(opts: {
         method,
         headers: {
           Authorization: `Basic ${getAuth()}`,
-          Accept: "application/json",
+          Accept: opts.accept ?? "application/json",
           ...(contentTypeHeader ? { "Content-Type": contentTypeHeader } : {}),
         },
         ...(requestBody !== undefined ? { body: requestBody } : {}),
