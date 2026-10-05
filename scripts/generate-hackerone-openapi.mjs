@@ -70,7 +70,9 @@ for (const [path, item] of Object.entries(spec.paths || {})) {
         if (style !== "form" || explode !== true) {
           throw new Error(`Unsupported query serialization ${style}/explode=${explode} at ${method.toUpperCase()} ${path}: ${resolved.name}`);
         }
-        if (parameterSchema?.type === "object" || (parameterSchema?.type === "array" && resolveRef(parameterSchema.items)?.type === "object")) {
+        const objectValued = parameterSchema?.type === "object" || (parameterSchema?.type === "array" && resolveRef(parameterSchema.items)?.type === "object");
+        const documentedCustomFieldFilter = method === "get" && path === "/reports" && resolved.name === "filter[custom_fields][]";
+        if (objectValued && !documentedCustomFieldFilter) {
           throw new Error(`Object-valued query parameter requires explicit serializer at ${method.toUpperCase()} ${path}: ${resolved.name}`);
         }
       }
