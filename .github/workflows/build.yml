@@ -2,6 +2,12 @@ name: Build
 
 on:
   push:
+    branches:
+      - main
+      - "full-*"
+      - "exact-*"
+      - "*final*"
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -19,5 +25,11 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm install
-      - name: Build
+      - name: Validate Hacker API contract
+        run: npm run validate:hacker-api
+      - name: Validate report search behavior
+        run: npm run validate:search-reports
+      - name: Build remote MCP
         run: npm run build
+      - name: Build stdio MCP
+        run: npm run build:cli
