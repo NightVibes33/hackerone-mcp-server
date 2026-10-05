@@ -3,6 +3,8 @@ import fs from "node:fs/promises";
 const clientSource = await fs.readFile(new URL("../src/h1client.ts", import.meta.url), "utf8");
 const exactToolSource = await fs.readFile(new URL("../src/hacker-exact-tools.ts", import.meta.url), "utf8");
 const customerToolSource = await fs.readFile(new URL("../src/customer-openapi-tools.ts", import.meta.url), "utf8");
+const remoteSource = await fs.readFile(new URL("../app/api/mcp/route.ts", import.meta.url), "utf8");
+const stdioSource = await fs.readFile(new URL("../src/index.ts", import.meta.url), "utf8");
 const source = clientSource + "\n" + exactToolSource;
 const normalize = (path) => path.replace(/\$\{[^}]+\}/g, "{id}");
 
@@ -64,6 +66,12 @@ for (const requiredSource of [
   'bytes.toString("base64") !== encoded',
 ]) {
   if (!clientSource.includes(requiredSource)) throw new Error(`Hacker client regression guard missing: ${requiredSource}`);
+}
+
+for (const [surface, sourceText] of [["client", clientSource], ["exact Hacker tools", exactToolSource], ["remote MCP", remoteSource], ["stdio MCP", stdioSource]]) {
+  if (!sourceText.includes("attachment_ids")) {
+    throw new Error(`Documented create-report attachment_ids missing from ${surface}`);
+  }
 }
 
 for (const requiredSource of [
