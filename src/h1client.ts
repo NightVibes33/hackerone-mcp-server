@@ -234,7 +234,8 @@ async function h1PostForm(
   const form = new FormData();
   for (const file of files) {
     const bytes = decodeCanonicalBase64(file.base64_data, `multipart file ${file.file_name}`);
-    const blob = new Blob([bytes], {
+    const blobBytes = Uint8Array.from(bytes);
+    const blob = new Blob([blobBytes], {
       type: file.content_type || "application/octet-stream",
     });
     form.append("files[]", blob, file.file_name);
@@ -1131,7 +1132,8 @@ export async function hackerOneApiRequest(opts: {
     for (const [key, value] of Object.entries(opts.form_fields ?? {})) form.append(key, value);
     for (const file of opts.multipart_files ?? []) {
       const bytes = decodeCanonicalBase64(file.base64_data, `multipart file ${file.file_name}`);
-      const blob = new Blob([bytes], { type: file.content_type || "application/octet-stream" });
+      const blobBytes = Uint8Array.from(bytes);
+    const blob = new Blob([blobBytes], { type: file.content_type || "application/octet-stream" });
       form.append(file.field_name || "files[]", blob, file.file_name);
     }
     requestBody = form as any;
