@@ -681,22 +681,17 @@ server.tool(
       .describe(
         "Full vulnerability details in markdown — steps to reproduce, root cause, and proof of concept"
       ),
-    impact: z
-      .string()
-      .optional()
-      .describe("Impact statement — what an attacker can achieve"),
+    impact: z.string().describe("Impact statement — what an attacker can achieve"),
     severity_rating: z
       .enum(["none", "low", "medium", "high", "critical"])
       .optional()
       .describe("Suggested severity rating"),
-    weakness_id: z
-      .string()
+    weakness_id: z.number().int()
       .optional()
       .describe(
         "Weakness/CWE ID from get_program_weaknesses (the numeric id field)"
       ),
-    structured_scope_id: z
-      .string()
+    structured_scope_id: z.number().int()
       .optional()
       .describe(
         "Scope asset ID from get_program_scope (the numeric id field)"
