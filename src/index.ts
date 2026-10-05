@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { registerCustomerOpenApiTools } from "./customer-openapi-tools.js";
+import { registerHackerExactTools } from "./hacker-exact-tools.js";
 import {
   searchReports,
   getReport,
@@ -34,6 +35,18 @@ import {
 const server = new McpServer({
   name: "hackerone",
   version: "3.0.0",
+});
+
+// ── Exact first-class Hacker API operations from HackerOne Hacker Resources ──
+registerHackerExactTools((name, description, shape, fn) => {
+  server.tool(name, description, shape, async (params:any) => {
+    try {
+      const result = await fn(params);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }], isError: result?.ok === false };
+    } catch (err:any) {
+      return { content: [{ type: "text" as const, text: JSON.stringify({ error: err?.message ?? String(err) }, null, 2) }], isError: true };
+    }
+  });
 });
 
 // ── Exact first-class Customer API operations from HackerOne OpenAPI ──
