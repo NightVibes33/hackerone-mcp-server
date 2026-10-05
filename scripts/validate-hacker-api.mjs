@@ -79,8 +79,15 @@ if (!client.includes("r.weakness") || !client.includes("r._impact")) {
 if (!client.includes('opts.sort') || !client.includes('.split(",")')) {
   throw new Error("Existing searchReports sort option must be implemented locally, including multi-field values");
 }
-if (!client.includes('bytes.toString("base64") !== encoded')) {
-  throw new Error("Multipart transport must reject malformed/non-canonical Base64");
+for (const required of [
+  "function decodeCanonicalBase64(",
+  "value.length % 4 !== 0",
+  "bytes.toString(\"base64\") !== value",
+  "decodeCanonicalBase64(file.base64_data",
+]) {
+  if (!client.includes(required)) {
+    throw new Error(`Multipart transport canonical Base64 guard missing: ${required}`);
+  }
 }
 for (const required of [
   "parameterDefs",
