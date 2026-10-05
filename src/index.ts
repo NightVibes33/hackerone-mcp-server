@@ -56,7 +56,7 @@ server.tool(
       content_type: z.string().optional(),
       base64_data: z.string().min(1),
     })).optional().describe("Multipart uploads for documented file/attachment/import endpoints"),
-    form_fields: z.record(z.string(), z.string()).optional().describe("Additional multipart form fields").describe("Documented JSON:API request body for write operations"),
+    form_fields: z.record(z.string(), z.string()).optional().describe("Additional multipart form fields"),
   },
   async (params) => {
     try {
