@@ -696,6 +696,9 @@ server.tool(
       .describe(
         "Scope asset ID from get_program_scope (the numeric id field)"
       ),
+    attachment_ids: z.array(z.number().int())
+      .optional()
+      .describe("IDs of attachments previously uploaded to HackerOne to associate with this report"),
   },
   async (params) => {
     try {
