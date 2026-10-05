@@ -5,15 +5,21 @@ import { hackerOneApiRequest } from "./h1client";
 type Register = (name: string, description: string, shape: Record<string,z.ZodTypeAny>, handler: (params:any)=>Promise<any>) => void;
 const METHODS = ["get","post","put","patch","delete"] as const;
 
+function resolveRef(value:any): any {
+  if (!value?.$ref) return value;
+  const parts=value.$ref.replace(/^#\//,"").split("/");
+  let cur:any=CUSTOMER_OPENAPI_SPEC;
+  for (const p of parts) cur=cur?.[p];
+  if (cur === undefined) throw new Error(`Unresolvable OpenAPI reference: ${value.$ref}`);
+  return cur;
+}
+
 function deref(schema:any, seen=new Set<string>()): any {
   if (!schema) return {};
   if (schema.$ref) {
-    if (seen.has(schema.$ref)) return {};
+    if (seen.has(schema.$ref)) throw new Error(`Circular OpenAPI schema reference: ${schema.$ref}`);
     const next = new Set(seen); next.add(schema.$ref);
-    const parts = schema.$ref.replace(/^#\//,"").split("/");
-    let cur:any = CUSTOMER_OPENAPI_SPEC;
-    for (const p of parts) cur = cur?.[p];
-    return deref(cur || {}, next);
+    return deref(resolveRef(schema), next);
   }
   return schema;
 }
@@ -168,11 +174,28 @@ function toolName(method:string,path:string){
 }
 
 function resolveParameter(p:any){
-  if(!p?.$ref) return p;
-  const parts=p.$ref.replace(/^#\//,"").split("/");
-  let cur:any=CUSTOMER_OPENAPI_SPEC;
-  for(const x of parts) cur=cur?.[x];
-  return cur||p;
+  return p?.$ref ? resolveRef(p) : p;
+}
+
+function selectParameterSchema(p:any){
+  if (p.schema) return p.schema;
+  if (!p.content) return { type: p.type || "string" };
+  const entries=Object.entries<any>(p.content);
+  if (entries.length !== 1) {
+    throw new Error(`Parameter ${p.name ?? "(unnamed)"} must define exactly one documented media type`);
+  }
+  return entries[0][1]?.schema ?? {};
+}
+
+function selectRequestBody(rb:any){
+  if (!rb) return { contentType:"application/json", schema:undefined };
+  const content=rb.content||{};
+  const supported=["application/json","multipart/form-data"].filter((type)=>content[type]);
+  if (supported.length !== 1) {
+    throw new Error(`Request body must define exactly one supported media type (application/json or multipart/form-data); found ${supported.length}`);
+  }
+  const contentType=supported[0];
+  return { contentType, schema:content[contentType]?.schema };
 }
 
 export function registerCustomerOpenApiTools(register:Register){
@@ -185,25 +208,20 @@ export function registerCustomerOpenApiTools(register:Register){
       const shape:Record<string,z.ZodTypeAny>={};
       const parameterDefs=[...(item.parameters||[]),...(op.parameters||[])].map(resolveParameter);
       for(const p of parameterDefs){
-        if(!p?.name || !["path","query"].includes(p.in)) continue;
-        const parameterContent = p.content ? Object.values<any>(p.content)[0] : undefined;
-        let zs=zodFromSchema(p.schema||parameterContent?.schema||{type:p.type||"string"});
+        if(!p?.name) throw new Error(`OpenAPI parameter without a name on ${method.toUpperCase()} ${path}`);
+        if(!["path","query"].includes(p.in)) {
+          throw new Error(`Unsupported OpenAPI parameter location "${p.in}" on ${method.toUpperCase()} ${path}`);
+        }
+        let zs=zodFromSchema(selectParameterSchema(p));
         if(p.description) zs=zs.describe(p.description);
         shape[p.name]=p.required?zs:zs.optional();
       }
       const bodyParam=parameterDefs.find((p:any)=>p?.in==="body");
+      if(bodyParam) throw new Error(`OpenAPI 3 request body must not be encoded as an in=body parameter on ${method.toUpperCase()} ${path}`);
       const rb=op.requestBody ? deref(op.requestBody) : undefined;
-      let bodySchema:any=bodyParam?.schema;
-      let contentType="application/json";
-      if(rb){
-        const content=rb.content||{};
-        contentType = content["application/json"]
-          ? "application/json"
-          : content["multipart/form-data"]
-            ? "multipart/form-data"
-            : Object.keys(content)[0]||contentType;
-        bodySchema=content[contentType]?.schema;
-      }
+      const selectedBody=selectRequestBody(rb);
+      const contentType=selectedBody.contentType;
+      const bodySchema=selectedBody.schema;
       if(bodySchema){
         const resolved=deref(bodySchema);
         if(resolved.type==="object" && resolved.properties){
