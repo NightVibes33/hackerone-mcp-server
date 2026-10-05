@@ -845,58 +845,6 @@ export async function submitReport(opts: {
   };
 }
 // ── Add comment to report ─────────────────────────────────────────
-export async function addComment(
-  reportId: string,
-  message: string,
-  internal = false
-) {
-  const body = {
-    data: {
-      type: "activity-comment",
-      attributes: {
-        message,
-        internal,
-      },
-    },
-  };
-
-  const result = await h1Post(
-    `/hackers/reports/${reportId}/activities`,
-    body
-  );
-  return {
-    id: result.data?.id,
-    type: result.data?.type,
-    message: result.data?.attributes?.message,
-    created_at: result.data?.attributes?.created_at,
-  };
-}
-
-// ── Close / withdraw report ───────────────────────────────────────
-export async function closeReport(reportId: string, message?: string) {
-  const body = {
-    data: {
-      type: "activity-hacker-requested-mediation",
-      attributes: {
-        message: message ?? "Withdrawing this report.",
-        close_report: true,
-      },
-    },
-  };
-
-  // Attempt the state change via activities
-  const result = await h1Post(
-    `/hackers/reports/${reportId}/activities`,
-    body
-  );
-  return {
-    id: result.data?.id,
-    type: result.data?.type,
-    message: result.data?.attributes?.message,
-    created_at: result.data?.attributes?.created_at,
-  };
-}
-
 // ── Search disclosed reports / Hacktivity ─────────────────────────
 export async function searchDisclosedReports(opts: {
   program?: string;
