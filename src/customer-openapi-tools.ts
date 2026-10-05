@@ -125,6 +125,9 @@ export function registerCustomerOpenApiTools(register:Register){
         }
       }
       const name=toolName(method,path);
+      const successResponse = Object.entries<any>(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1];
+      const responseContent = successResponse?.content || {};
+      const accept = Object.keys(responseContent)[0] || "application/json";
       const description=[op.summary,op.description,`${method.toUpperCase()} ${path}`].filter(Boolean).join("\n\n");
       register(name,description,shape,async(params:any)=>{
         let resolvedPath=path;
@@ -155,9 +158,9 @@ export function registerCustomerOpenApiTools(register:Register){
               for(const x of v) files.push({field_name:k,file_name:x.file_name||"upload.bin",content_type:x.content_type,base64_data:x.base64_data});
             } else formFields[k]=typeof v==="string"?v:JSON.stringify(v);
           }
-          return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,multipart_files:files,form_fields:formFields});
+          return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,multipart_files:files,form_fields:formFields,accept});
         }
-        return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,body});
+        return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,body,accept});
       });
     }
   }
