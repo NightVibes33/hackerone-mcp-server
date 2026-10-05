@@ -914,22 +914,22 @@ export async function submitReport(opts: {
   program_handle: string;
   title: string;
   vulnerability_information: string;
-  impact?: string;
-  severity_rating?: string;
-  weakness_id?: string;
-  structured_scope_id?: string;
+  impact: string;
+  severity_rating?: "none" | "low" | "medium" | "high" | "critical";
+  weakness_id?: number;
+  structured_scope_id?: number;
 }) {
   const attributes: Record<string, any> = {
     team_handle: opts.program_handle,
     title: opts.title,
     vulnerability_information: opts.vulnerability_information,
-    impact: opts.impact ?? "",
+    impact: opts.impact,
   };
 
   if (opts.severity_rating) attributes.severity_rating = opts.severity_rating;
-  if (opts.weakness_id) attributes.weakness_id = Number(opts.weakness_id);
-  if (opts.structured_scope_id)
-    attributes.structured_scope_id = Number(opts.structured_scope_id);
+  if (opts.weakness_id !== undefined) attributes.weakness_id = opts.weakness_id;
+  if (opts.structured_scope_id !== undefined)
+    attributes.structured_scope_id = opts.structured_scope_id;
 
   const body = {
     data: {
