@@ -1131,7 +1131,7 @@ export async function searchDisclosedReports(opts: {
 }
 
 
-export type HackerOneApiMethod = "GET" | "POST" | "PATCH" | "DELETE";
+export type HackerOneApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /** Full-fidelity interface for every documented HackerOne API v1 resource. */
 export async function hackerOneApiRequest(opts: {
