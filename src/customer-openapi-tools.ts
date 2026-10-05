@@ -186,17 +186,22 @@ export function registerCustomerOpenApiTools(register:Register){
       const parameterDefs=[...(item.parameters||[]),...(op.parameters||[])].map(resolveParameter);
       for(const p of parameterDefs){
         if(!p?.name || !["path","query"].includes(p.in)) continue;
-        let zs=zodFromSchema(p.schema||{type:p.type||"string"});
+        const parameterContent = p.content ? Object.values<any>(p.content)[0] : undefined;
+        let zs=zodFromSchema(p.schema||parameterContent?.schema||{type:p.type||"string"});
         if(p.description) zs=zs.describe(p.description);
         shape[p.name]=p.required?zs:zs.optional();
       }
       const bodyParam=parameterDefs.find((p:any)=>p?.in==="body");
-      const rb=op.requestBody;
+      const rb=op.requestBody ? deref(op.requestBody) : undefined;
       let bodySchema:any=bodyParam?.schema;
       let contentType="application/json";
       if(rb){
         const content=rb.content||{};
-        contentType=Object.keys(content)[0]||contentType;
+        contentType = content["application/json"]
+          ? "application/json"
+          : content["multipart/form-data"]
+            ? "multipart/form-data"
+            : Object.keys(content)[0]||contentType;
         bodySchema=content[contentType]?.schema;
       }
       if(bodySchema){
