@@ -18,61 +18,137 @@ function deref(schema:any, seen=new Set<string>()): any {
   return schema;
 }
 
+function stableJson(value:any): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+}
+
+function strictBase64(value:string): boolean {
+  if (!value || value.length % 4 !== 0) return false;
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) return false;
+  try { return Buffer.from(value, "base64").toString("base64") === value; }
+  catch { return false; }
+}
+
+function applySharedConstraints(out:z.ZodTypeAny, s:any): z.ZodTypeAny {
+  if (s.not) {
+    const forbidden=zodFromSchema(s.not);
+    out=out.refine((value:any)=>!forbidden.safeParse(value).success,{message:"Value matches forbidden OpenAPI schema"});
+  }
+  if (s.nullable) out=out.nullable();
+  return out;
+}
+
 function zodFromSchema(input:any): z.ZodTypeAny {
-  let s:any = deref(input);
+  const s:any=deref(input);
+
   if (s.allOf?.length) {
     const parts=s.allOf.map((x:any)=>zodFromSchema(x));
-    let out:any=parts[0] || z.any();
+    let out:z.ZodTypeAny=parts[0]||z.any();
     for(let i=1;i<parts.length;i++) out=z.intersection(out,parts[i]);
-    return s.nullable ? out.nullable() : out;
+    return applySharedConstraints(out,s);
   }
-  if (s.oneOf?.length || s.anyOf?.length) {
-    const variants=(s.oneOf||s.anyOf).map((x:any)=>zodFromSchema(x));
-    const out:any=variants.length===1?variants[0]:z.union(variants as [z.ZodTypeAny,z.ZodTypeAny,...z.ZodTypeAny[]]);
-    return s.nullable?out.nullable():out;
+  if (s.oneOf?.length) {
+    const variants=s.oneOf.map((x:any)=>zodFromSchema(x));
+    let out:z.ZodTypeAny;
+    if(variants.length===1) out=variants[0];
+    else {
+      const union=z.union(variants as [z.ZodTypeAny,z.ZodTypeAny,...z.ZodTypeAny[]]);
+      out=union.refine(
+        (value:any)=>variants.filter((variant:z.ZodTypeAny)=>variant.safeParse(value).success).length===1,
+        {message:"Value must match exactly one OpenAPI oneOf schema"}
+      );
+    }
+    return applySharedConstraints(out,s);
   }
-  let out:z.ZodTypeAny;
-  if (Array.isArray(s.enum) && s.enum.length) {
+  if (s.anyOf?.length) {
+    const variants=s.anyOf.map((x:any)=>zodFromSchema(x));
+    const out:z.ZodTypeAny=variants.length===1?variants[0]:z.union(variants as [z.ZodTypeAny,z.ZodTypeAny,...z.ZodTypeAny[]]);
+    return applySharedConstraints(out,s);
+  }
+  if (Array.isArray(s.enum)&&s.enum.length) {
     const literals=s.enum.map((v:any)=>z.literal(v));
-    out=literals.length===1?literals[0]:z.union(literals as [any,any,...any[]]);
-  } else switch(s.type) {
-    case "integer": out=z.number().int(); break;
-    case "number": out=z.number(); break;
+    const out:z.ZodTypeAny=literals.length===1?literals[0]:z.union(literals as [any,any,...any[]]);
+    return applySharedConstraints(out,s);
+  }
+
+  let out:z.ZodTypeAny;
+  switch(s.type){
+    case "integer":
+    case "number":{
+      let schema:any=s.type==="integer"?z.number().int():z.number();
+      if(typeof s.minimum==="number") schema=s.exclusiveMinimum===true?schema.gt(s.minimum):schema.min(s.minimum);
+      if(typeof s.maximum==="number") schema=s.exclusiveMaximum===true?schema.lt(s.maximum):schema.max(s.maximum);
+      if(typeof s.exclusiveMinimum==="number") schema=schema.gt(s.exclusiveMinimum);
+      if(typeof s.exclusiveMaximum==="number") schema=schema.lt(s.exclusiveMaximum);
+      if(typeof s.multipleOf==="number") schema=schema.multipleOf(s.multipleOf);
+      out=schema; break;
+    }
     case "boolean": out=z.boolean(); break;
-    case "array": out=z.array(zodFromSchema(s.items||{})); break;
-    case "object": {
+    case "array":{
+      let schema:any=z.array(zodFromSchema(s.items||{}));
+      if(typeof s.minItems==="number") schema=schema.min(s.minItems);
+      if(typeof s.maxItems==="number") schema=schema.max(s.maxItems);
+      if(s.uniqueItems) schema=schema.refine(
+        (values:any[])=>new Set(values.map(stableJson)).size===values.length,
+        {message:"Array items must be unique"}
+      );
+      out=schema; break;
+    }
+    case "object":{
       const shape:Record<string,z.ZodTypeAny>={};
       const required=new Set<string>(s.required||[]);
       for(const [k,v] of Object.entries<any>(s.properties||{})){
+        if(v?.readOnly===true) continue;
         let child=zodFromSchema(v);
         if(v.description) child=child.describe(v.description);
         shape[k]=required.has(k)?child:child.optional();
       }
-      out=z.object(shape);
-      if(s.additionalProperties && typeof s.additionalProperties==="object") out=(out as z.ZodObject<any>).catchall(zodFromSchema(s.additionalProperties));
-      else if(s.additionalProperties!==false) out=(out as z.ZodObject<any>).passthrough();
-      break;
+      let schema:any=z.object(shape);
+      if(s.additionalProperties===false) schema=schema.strict();
+      else if(s.additionalProperties&&typeof s.additionalProperties==="object") schema=schema.catchall(zodFromSchema(s.additionalProperties));
+      else schema=schema.catchall(z.any());
+      if(typeof s.minProperties==="number") schema=schema.refine(
+        (value:Record<string,unknown>)=>Object.keys(value).length>=s.minProperties,
+        {message:`Object must contain at least ${s.minProperties} properties`}
+      );
+      if(typeof s.maxProperties==="number") schema=schema.refine(
+        (value:Record<string,unknown>)=>Object.keys(value).length<=s.maxProperties,
+        {message:`Object must contain at most ${s.maxProperties} properties`}
+      );
+      out=schema; break;
     }
-    case "string":
-      out = s.format === "binary"
-        ? z.object({
-            file_name: z.string().min(1),
-            content_type: z.string().optional(),
-            base64_data: z.string().min(1).describe("Base64-encoded file bytes"),
-          })
-        : z.string();
-      break;
+    case "string":{
+      if(s.format==="binary"){
+        out=z.object({
+          file_name:z.string().min(1),
+          content_type:z.string().optional(),
+          base64_data:z.string().refine(strictBase64,{message:"base64_data must be canonical Base64"}).describe("Base64-encoded file bytes"),
+        }).strict();
+        break;
+      }
+      let schema:any=z.string();
+      if(typeof s.minLength==="number") schema=schema.min(s.minLength);
+      if(typeof s.maxLength==="number") schema=schema.max(s.maxLength);
+      if(typeof s.pattern==="string") schema=schema.regex(new RegExp(s.pattern));
+      switch(s.format){
+        case undefined: case null: case "password": break;
+        case "byte": schema=schema.base64(); break;
+        case "date": schema=schema.date(); break;
+        case "date-time": schema=schema.datetime({offset:true}); break;
+        case "email": schema=schema.email(); break;
+        case "uuid": schema=schema.uuid(); break;
+        case "url": case "uri": schema=schema.url(); break;
+        case "ipv4": schema=schema.ipv4(); break;
+        case "ipv6": schema=schema.ipv6(); break;
+        default: break; // OpenAPI permits unrecognized formats to fall back to the base type.
+      }
+      out=schema; break;
+    }
     default: out=s.type?z.string():z.any();
   }
-  if(typeof s.minimum==="number" && out instanceof z.ZodNumber) out=out.min(s.minimum);
-  if(typeof s.maximum==="number" && out instanceof z.ZodNumber) out=out.max(s.maximum);
-  if(typeof s.minLength==="number" && out instanceof z.ZodString) out=out.min(s.minLength);
-  if(typeof s.maxLength==="number" && out instanceof z.ZodString) out=out.max(s.maxLength);
-  if(typeof s.pattern==="string" && out instanceof z.ZodString) out=out.regex(new RegExp(s.pattern));
-  if(typeof s.minItems==="number" && out instanceof z.ZodArray) out=out.min(s.minItems);
-  if(typeof s.maxItems==="number" && out instanceof z.ZodArray) out=out.max(s.maxItems);
-  if(s.nullable) out=out.nullable();
-  return out;
+  return applySharedConstraints(out,s);
 }
 
 function toolName(method:string,path:string){
@@ -90,6 +166,7 @@ function resolveParameter(p:any){
 
 export function registerCustomerOpenApiTools(register:Register){
   let count=0;
+  const usedToolNames=new Map<string,string>();
   for(const [path,item] of Object.entries<any>(CUSTOMER_OPENAPI_SPEC.paths||{})){
     for(const method of METHODS){
       const op=item?.[method]; if(!op) continue;
@@ -98,17 +175,18 @@ export function registerCustomerOpenApiTools(register:Register){
       const parameters=[...(item.parameters||[]),...(op.parameters||[])].map(resolveParameter);
       for(const p of parameters){
         if(!p?.name || !["path","query"].includes(p.in)) continue;
-        let zs=zodFromSchema(p.schema||{type:p.type||"string"});
+        const parameterContent=p.content?Object.values<any>(p.content)[0]:undefined;
+        let zs=zodFromSchema(p.schema||parameterContent?.schema||{type:p.type||"string"});
         if(p.description) zs=zs.describe(p.description);
         shape[p.name]=p.required?zs:zs.optional();
       }
       const bodyParam=parameters.find((p:any)=>p?.in==="body");
-      const rb=op.requestBody;
+      const rb=op.requestBody?deref(op.requestBody):undefined;
       let bodySchema:any=bodyParam?.schema;
       let contentType="application/json";
       if(rb){
         const content=rb.content||{};
-        contentType=Object.keys(content)[0]||contentType;
+        contentType=content["application/json"]?"application/json":content["multipart/form-data"]?"multipart/form-data":Object.keys(content)[0]||contentType;
         bodySchema=content[contentType]?.schema;
       }
       if(bodySchema){
@@ -125,6 +203,10 @@ export function registerCustomerOpenApiTools(register:Register){
         }
       }
       const name=toolName(method,path);
+      const operationKey=`${method.toUpperCase()} ${path}`;
+      const existing=usedToolNames.get(name);
+      if(existing) throw new Error(`Customer MCP tool-name collision: ${name} maps both ${existing} and ${operationKey}`);
+      usedToolNames.set(name,operationKey);
       const successResponse = Object.entries<any>(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1];
       const responseContent = successResponse?.content || {};
       const accept = Object.keys(responseContent)[0] || "application/json";
