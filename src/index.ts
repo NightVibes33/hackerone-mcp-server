@@ -706,6 +706,9 @@ server.tool(
       .describe(
         "Scope asset ID from get_program_scope (the numeric id field)"
       ),
+    attachment_ids: z.array(z.number().int())
+      .optional()
+      .describe("IDs of previously uploaded attachments to associate with the new report"),
   },
   async (params) => {
     try {
