@@ -45,7 +45,7 @@ server.tool(
   {
     method: z.enum(["GET", "POST", "PATCH", "DELETE"]).optional(),
     path: z.string().describe("Relative HackerOne v1 path beginning with /"),
-    query: z.record(z.union([
+    query: z.record(z.string(), z.union([
       z.string(), z.number(), z.boolean(),
       z.array(z.union([z.string(), z.number()]))
     ])).optional(),
