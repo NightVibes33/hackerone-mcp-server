@@ -49,7 +49,14 @@ server.tool(
       z.string(), z.number(), z.boolean(),
       z.array(z.union([z.string(), z.number()]))
     ])).optional(),
-    body: z.any().optional().describe("Documented JSON:API request body for write operations"),
+    body: z.any().optional(),
+    multipart_files: z.array(z.object({
+      field_name: z.string().optional().describe("Multipart field name; defaults to files[]"),
+      file_name: z.string().min(1),
+      content_type: z.string().optional(),
+      base64_data: z.string().min(1),
+    })).optional().describe("Multipart uploads for documented file/attachment/import endpoints"),
+    form_fields: z.record(z.string(), z.string()).optional().describe("Additional multipart form fields").describe("Documented JSON:API request body for write operations"),
   },
   async (params) => {
     try {
