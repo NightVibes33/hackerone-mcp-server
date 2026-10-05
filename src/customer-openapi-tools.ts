@@ -54,6 +54,14 @@ function zodFromSchema(input:any): z.ZodTypeAny {
       break;
     }
     case "string":
+      out = s.format === "binary"
+        ? z.object({
+            file_name: z.string().min(1),
+            content_type: z.string().optional(),
+            base64_data: z.string().min(1).describe("Base64-encoded file bytes"),
+          })
+        : z.string();
+      break;
     default: out=s.type?z.string():z.any();
   }
   if(typeof s.minimum==="number" && out instanceof z.ZodNumber) out=out.min(s.minimum);
