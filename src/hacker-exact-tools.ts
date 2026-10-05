@@ -70,5 +70,5 @@ export function registerHackerExactTools(register:Register){
     data:z.object({type:z.literal("report-intent"),attributes:z.object({description:z.string()})}),
   },p=>call("PATCH",`/hackers/report_intents/${encodeURIComponent(p.id)}`,undefined,{data:p.data}));
   register("hacker_delete_report_intent","DELETE /hackers/report_intents/{id}",{id:z.string()},p=>call("DELETE",`/hackers/report_intents/${encodeURIComponent(p.id)}`));
-  register("hacker_submit_report_intent","POST /hackers/report_intents/{id}/submit",{id:z.string()},p=>call("POST",`/hackers/report_intents/${encodeURIComponent(p.id)}/submit`,undefined,{}));
+  register("hacker_submit_report_intent","POST /hackers/report_intents/{id}/submit",{id:z.string()},p=>call("POST",`/hackers/report_intents/${encodeURIComponent(p.id)}/submit`));
 }
