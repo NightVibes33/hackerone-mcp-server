@@ -274,168 +274,41 @@ export interface SearchReportsOpts {
 }
 
 export async function searchReports(opts: SearchReportsOpts = {}) {
-  const needsFilter = !!(
-    opts.program ||
-    opts.severity ||
-    opts.state ||
-    opts.query
-  );
-  const requestedSize = opts.page_size ?? 25;
+  const requestedSize = Math.max(1, Math.min(opts.page_size ?? 25, 100));
+  const firstPage = Math.max(1, opts.page_number ?? 1);
+  const needsLocalFilter = !!(opts.program || opts.severity || opts.state || opts.query);
+  const matches: any[] = [];
 
-  const fetchSize = needsFilter ? 100 : requestedSize;
-  const pageNumber = opts.page_number ?? 1;
-
-  let allReports: any[] = [];
-
-  if (needsFilter) {
-    // Build server-side filter params where possible
-    const serverParams: Record<string, string> = {
-      "page[size]": "100",
-      "page[number]": "1",
-    };
-    if (opts.program) {
-      serverParams["filter[program][]"] = opts.program;
-    }
-    if (opts.severity) {
-      serverParams["filter[severity][]"] = opts.severity;
-    }
-    if (opts.state) {
-      serverParams["filter[state][]"] = opts.state;
-    }
-
-    // If we have server-side filters (not just keyword), use them
-    const hasServerFilters = !!(opts.program || opts.severity || opts.state);
-
-    if (hasServerFilters) {
-      // Fetch with server-side filters, paginate until we have enough
-      for (let page = 1; page <= 20; page++) {
-        serverParams["page[number]"] = String(page);
-        const data = await h1Fetch("/hackers/me/reports", serverParams);
-        if (!data.data || data.data.length === 0) break;
-        allReports.push(...data.data);
-        if (data.data.length < 100) break;
-        if (!opts.query && allReports.length >= requestedSize) break;
-      }
-    } else {
-      // Keyword-only: fall back to client-side search with backward pagination
-      const probeRes = await h1Fetch("/hackers/me/reports", {
-        "page[size]": "100",
-        "page[number]": "1",
-      });
-      if (probeRes.data?.length === 100) {
-        let lo = 1,
-          hi = 50;
-        while (lo < hi) {
-          const mid = Math.ceil((lo + hi) / 2);
-          const check = await h1Fetch("/hackers/me/reports", {
-            "page[size]": "100",
-            "page[number]": String(mid),
-          });
-          if (check.data?.length > 0) {
-            lo = mid;
-            if (check.data.length < 100) break;
-            hi = Math.max(hi, mid + 5);
-          } else {
-            hi = mid - 1;
-          }
-        }
-        for (let page = lo; page >= 1; page--) {
-          const data =
-            page === 1 && probeRes.data
-              ? probeRes
-              : await h1Fetch("/hackers/me/reports", {
-                  "page[size]": "100",
-                  "page[number]": String(page),
-                });
-          if (!data.data || data.data.length === 0) continue;
-          allReports.push(...data.data);
-          const tempFiltered = allReports.filter((r: any) => {
-            const q = opts.query!.toLowerCase();
-            const title = r.attributes.title?.toLowerCase() ?? "";
-            const vuln =
-              r.attributes.vulnerability_information?.toLowerCase() ?? "";
-            const weakness =
-              r.relationships?.weakness?.data?.attributes?.name?.toLowerCase() ??
-              "";
-            return (
-              title.includes(q) || vuln.includes(q) || weakness.includes(q)
-            );
-          });
-          if (tempFiltered.length >= requestedSize) break;
-        }
-      } else {
-        allReports = probeRes.data ?? [];
-      }
-    }
-  } else {
+  // HackerOne documents only page[number] and page[size] on GET /hackers/me/reports.
+  // Never send inferred filter/sort parameters to this endpoint. Convenience
+  // filtering remains client-side so the wire contract stays exactly documented.
+  for (let page = firstPage; page < firstPage + (needsLocalFilter ? 50 : 1) && matches.length < requestedSize; page++) {
     const data = await h1Fetch("/hackers/me/reports", {
-      "page[size]": String(fetchSize),
-      "page[number]": String(pageNumber),
+      "page[size]": String(needsLocalFilter ? 100 : requestedSize),
+      "page[number]": String(page),
     });
-    allReports = data.data ?? [];
+    const items = data.data ?? [];
+    if (!items.length) break;
+
+    for (const r of items) {
+      const attrs = r.attributes ?? {};
+      const program = r.relationships?.program?.data?.attributes ?? {};
+      const severity = r.relationships?.severity?.data?.attributes ?? {};
+      const haystack = [attrs.title, attrs.vulnerability_information, attrs.impact, program.handle, program.name]
+        .filter(Boolean).join("\n").toLowerCase();
+      if (opts.program && program.handle?.toLowerCase() !== opts.program.toLowerCase()) continue;
+      if (opts.severity && severity.rating !== opts.severity) continue;
+      if (opts.state && attrs.state !== opts.state) continue;
+      if (opts.query && !haystack.includes(opts.query.toLowerCase())) continue;
+      matches.push(r);
+      if (matches.length >= requestedSize) break;
+    }
+    if (items.length < (needsLocalFilter ? 100 : requestedSize)) break;
   }
 
-  let reports = allReports.map((r: any) => mapReportSummary(r));
-
-  // Client-side filtering (keyword always needs this; program/severity/state as fallback)
-  if (opts.program) {
-    const prog = opts.program.toLowerCase();
-    reports = reports.filter((r) => r.program?.toLowerCase() === prog);
-  }
-  if (opts.severity) {
-    reports = reports.filter((r) => r.severity === opts.severity);
-  }
-  if (opts.state) {
-    reports = reports.filter((r) => r.state === opts.state);
-  }
-  if (opts.query) {
-    const q = opts.query.toLowerCase();
-    reports = reports.filter(
-      (r) =>
-        r.title?.toLowerCase().includes(q) ||
-        r._vuln_info?.toLowerCase().includes(q) ||
-        r.weakness?.toLowerCase().includes(q)
-    );
-  }
-
-  if (opts.sort) {
-    const desc = opts.sort.startsWith("-");
-    const field = opts.sort.replace(/^-/, "").replace("reports.", "");
-    reports.sort((a: any, b: any) => {
-      const va = a[field] ?? "";
-      const vb = b[field] ?? "";
-      return desc ? (vb > va ? 1 : -1) : va > vb ? 1 : -1;
-    });
-  }
-
-  if (needsFilter) {
-    reports = reports.slice(0, requestedSize);
-  }
-
-  return reports.map(({ _vuln_info, ...rest }) => rest);
+  return matches.map(mapReport);
 }
 
-function mapReportSummary(r: any) {
-  const bounty = r.relationships?.bounties?.data?.[0]?.attributes;
-  return {
-    id: r.id,
-    title: r.attributes.title,
-    state: r.attributes.state,
-    substate: r.attributes.substate,
-    severity: r.attributes.severity_rating,
-    created_at: r.attributes.created_at,
-    submitted_at: r.attributes.submitted_at ?? null,
-    disclosed_at: r.attributes.disclosed_at,
-    bounty_awarded_at: r.attributes.bounty_awarded_at,
-    bounty_amount: bounty?.amount ?? null,
-    bounty_bonus: bounty?.bonus_amount ?? null,
-    _vuln_info: r.attributes.vulnerability_information,
-    weakness: r.relationships?.weakness?.data?.attributes?.name ?? null,
-    program: r.relationships?.program?.data?.attributes?.handle ?? null,
-  };
-}
-
-// ── Get single report (with full CVSS + bounty) ──────────────────
 export async function getReport(reportId: string) {
   const data = await h1Fetch(`/hackers/reports/${reportId}`);
   const r = data.data;
