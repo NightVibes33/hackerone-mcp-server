@@ -27,6 +27,7 @@ import {
   addComment,
   closeReport,
   searchDisclosedReports,
+  hackerOneApiRequest,
 } from "../../../src/h1client";
 import { runWithHackerOneCredentials } from "../../../src/request-auth";
 import {
@@ -99,6 +100,19 @@ function registerH1Tool<T extends ToolShape>(
 
 const handler = createMcpHandler(
   (server) => {
+
+server.tool("hackerone_api_request", "Access a documented HackerOne API v1 resource beyond the dedicated convenience tools. The connected HackerOne account's normal permissions apply.", {
+  method: z.enum(["GET", "POST", "PATCH", "DELETE"]).optional(),
+  path: z.string(),
+  query: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), z.number()]))])).optional(),
+  body: z.any().optional(),
+}, async (params) => {
+  try {
+    return { content: [{ type: "text" as const, text: JSON.stringify(await hackerOneApiRequest(params as any), null, 2) }] };
+  } catch (err: any) {
+    return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+  }
+});
 
 // ── Tool: search_reports ───────────────────────────────────────────
 registerH1Tool(server, 

@@ -30,12 +30,36 @@ import {
   addComment,
   closeReport,
   searchDisclosedReports,
+  hackerOneApiRequest,
 } from "./h1client.js";
 
 const server = new McpServer({
   name: "hackerone",
   version: "3.0.0",
 });
+
+// ── Complete published HackerOne API v1 surface ──────────────────
+server.tool(
+  "hackerone_api_request",
+  "Call any documented HackerOne API v1 endpoint with the connected HackerOne credentials. Covers the complete Hacker API and Customer API beyond the dedicated convenience tools; HackerOne enforces account permissions.",
+  {
+    method: z.enum(["GET", "POST", "PATCH", "DELETE"]).optional(),
+    path: z.string().describe("Relative HackerOne v1 path beginning with /"),
+    query: z.record(z.union([
+      z.string(), z.number(), z.boolean(),
+      z.array(z.union([z.string(), z.number()]))
+    ])).optional(),
+    body: z.any().optional().describe("Documented JSON:API request body for write operations"),
+  },
+  async (params) => {
+    try {
+      const result = await hackerOneApiRequest(params as any);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
 
 // ── Tool: search_reports ───────────────────────────────────────────
 server.tool(
