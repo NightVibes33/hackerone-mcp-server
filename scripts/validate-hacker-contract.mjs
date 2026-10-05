@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 
-const source = await fs.readFile(new URL("../src/h1client.ts", import.meta.url), "utf8");
+const clientSource = await fs.readFile(new URL("../src/h1client.ts", import.meta.url), "utf8");
+const exactToolSource = await fs.readFile(new URL("../src/hacker-exact-tools.ts", import.meta.url), "utf8");
+const source = clientSource + "\n" + exactToolSource;
 const normalize = (path) => path.replace(/\$\{[^}]+\}/g, "{id}");
 
 const allowed = [
@@ -42,4 +44,8 @@ for (const path of required) {
   if (!found.has(path)) throw new Error(`Required documented Hacker API path missing: ${path}`);
 }
 
-console.log(`Validated ${found.size} distinct Hacker API path templates; no undocumented /hackers paths found.`);
+const exactToolCount = (exactToolSource.match(/register\("hacker_/g) || []).length;
+if (exactToolCount !== 21) {
+  throw new Error(`Expected 21 documented first-class Hacker API tools, found ${exactToolCount}`);
+}
+console.log(`Validated ${found.size} distinct Hacker API path templates and ${exactToolCount} first-class Hacker tools; no undocumented /hackers paths found.`);
