@@ -17,6 +17,11 @@ if (operations !== 152) {
   throw new Error(`HackerOne Customer OpenAPI drift detected: expected 152 documented operations, received ${operations}. Review docs before deployment.`);
 }
 
+const resolveRef = (value) => {
+  if (!value?.$ref) return value;
+  return value.$ref.replace(/^#\//, "").split("/").reduce((cur, key) => cur?.[key], spec);
+};
+
 const requiredOperations = [
   ["post", "/reports/{id}/severities"],
   ["post", "/reports/{id}/state_changes"],
@@ -49,18 +54,42 @@ for (const [path, item] of Object.entries(spec.paths || {})) {
     if (!op) continue;
     const parameters = [...(item.parameters || []), ...(op.parameters || [])];
     for (const parameter of parameters) {
-      const resolved = parameter?.$ref
-        ? parameter.$ref.replace(/^#\//, "").split("/").reduce((cur, key) => cur?.[key], spec)
-        : parameter;
+      const resolved = resolveRef(parameter);
       if (resolved?.in && !["path", "query"].includes(resolved.in)) {
         throw new Error(`Unsupported documented parameter location ${resolved.in} at ${method.toUpperCase()} ${path}`);
       }
+      if (resolved?.content && Object.keys(resolved.content).length > 1) {
+        throw new Error(`Multiple parameter media types require explicit modeling at ${method.toUpperCase()} ${path}: ${resolved.name}`);
+      }
+      const parameterSchema = resolveRef(
+        resolved?.schema || (resolved?.content ? Object.values(resolved.content)[0]?.schema : undefined)
+      );
+      if (resolved?.in === "query") {
+        const style = resolved.style ?? "form";
+        const explode = resolved.explode ?? true;
+        if (style !== "form" || explode !== true) {
+          throw new Error(`Unsupported query serialization ${style}/explode=${explode} at ${method.toUpperCase()} ${path}: ${resolved.name}`);
+        }
+        const objectValued = parameterSchema?.type === "object" || (parameterSchema?.type === "array" && resolveRef(parameterSchema.items)?.type === "object");
+        const documentedCustomFieldFilter = method === "get" && path === "/reports" && resolved.name === "filter[custom_fields][]";
+        if (objectValued && !documentedCustomFieldFilter) {
+          throw new Error(`Object-valued query parameter requires explicit serializer at ${method.toUpperCase()} ${path}: ${resolved.name}`);
+        }
+      }
+      if (resolved?.in === "path" && ["array", "object"].includes(parameterSchema?.type)) {
+        throw new Error(`Non-primitive path parameter requires explicit serializer at ${method.toUpperCase()} ${path}: ${resolved.name}`);
+      }
     }
-    const requestTypes = Object.keys(op.requestBody?.content || {});
+    const requestBody = resolveRef(op.requestBody);
+    const requestTypes = Object.keys(requestBody?.content || {});
     if (requestTypes.length > 1) {
       throw new Error(`Multiple documented request media types require explicit modeling at ${method.toUpperCase()} ${path}: ${requestTypes.join(", ")}`);
     }
-    const success = Object.entries(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1];
+    const requestMedia = requestTypes[0] ? requestBody?.content?.[requestTypes[0]] : undefined;
+    if (requestMedia?.encoding && Object.keys(requestMedia.encoding).length) {
+      throw new Error(`Multipart/request encoding requires explicit modeling at ${method.toUpperCase()} ${path}`);
+    }
+    const success = resolveRef(Object.entries(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1]);
     const responseTypes = Object.keys(success?.content || {});
     if (responseTypes.length > 1) {
       throw new Error(`Multiple documented success media types require explicit modeling at ${method.toUpperCase()} ${path}: ${responseTypes.join(", ")}`);

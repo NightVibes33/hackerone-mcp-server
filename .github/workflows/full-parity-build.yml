@@ -1,7 +1,7 @@
 name: Full parity build check
 on:
   push:
-    branches: [full-explicit-hackerone-api-2026-10-05, exact-contract-hardening-2026-10-05]
+    branches: [main, "full-*", "exact-*", "final-*"]
   pull_request:
     branches: [main]
 jobs:

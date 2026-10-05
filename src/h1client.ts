@@ -275,38 +275,106 @@ export interface SearchReportsOpts {
 
 export async function searchReports(opts: SearchReportsOpts = {}) {
   const requestedSize = Math.max(1, Math.min(opts.page_size ?? 25, 100));
-  const firstPage = Math.max(1, opts.page_number ?? 1);
-  const needsLocalFilter = !!(opts.program || opts.severity || opts.state || opts.query);
-  const matches: any[] = [];
+  const requestedPage = Math.max(1, opts.page_number ?? 1);
+  const needsLocalProcessing = !!(
+    opts.program ||
+    opts.severity ||
+    opts.state ||
+    opts.query ||
+    opts.sort
+  );
 
-  // HackerOne documents only page[number] and page[size] on GET /hackers/me/reports.
-  // Never send inferred filter/sort parameters to this endpoint. Convenience
-  // filtering remains client-side so the wire contract stays exactly documented.
-  for (let page = firstPage; page < firstPage + (needsLocalFilter ? 50 : 1) && matches.length < requestedSize; page++) {
-    const data = await h1Fetch("/hackers/me/reports", {
-      "page[size]": String(needsLocalFilter ? 100 : requestedSize),
-      "page[number]": String(page),
-    });
-    const items = data.data ?? [];
-    if (!items.length) break;
+  let rawReports: any[] = [];
 
-    for (const r of items) {
-      const attrs = r.attributes ?? {};
-      const program = r.relationships?.program?.data?.attributes ?? {};
-      const severity = r.relationships?.severity?.data?.attributes ?? {};
-      const haystack = [attrs.title, attrs.vulnerability_information, attrs.impact, program.handle, program.name]
-        .filter(Boolean).join("\n").toLowerCase();
-      if (opts.program && program.handle?.toLowerCase() !== opts.program.toLowerCase()) continue;
-      if (opts.severity && severity.rating !== opts.severity) continue;
-      if (opts.state && attrs.state !== opts.state) continue;
-      if (opts.query && !haystack.includes(opts.query.toLowerCase())) continue;
-      matches.push(r);
-      if (matches.length >= requestedSize) break;
+  if (needsLocalProcessing) {
+    // GET /hackers/me/reports documents pagination only. Never forward
+    // convenience filters or sort values as guessed API parameters.
+    for (let page = 1; ; page++) {
+      const data = await h1Fetch("/hackers/me/reports", {
+        "page[size]": "100",
+        "page[number]": String(page),
+      });
+      const items = data.data ?? [];
+      rawReports.push(...items);
+      if (items.length < 100) break;
     }
-    if (items.length < (needsLocalFilter ? 100 : requestedSize)) break;
+  } else {
+    const data = await h1Fetch("/hackers/me/reports", {
+      "page[size]": String(requestedSize),
+      "page[number]": String(requestedPage),
+    });
+    rawReports = data.data ?? [];
   }
 
-  return matches;
+  let reports = rawReports.map((r: any) => mapReportSummary(r));
+
+  if (opts.program) {
+    const program = opts.program.toLowerCase();
+    reports = reports.filter((r) => r.program?.toLowerCase() === program);
+  }
+  if (opts.severity) reports = reports.filter((r) => r.severity === opts.severity);
+  if (opts.state) reports = reports.filter((r) => r.state === opts.state);
+  if (opts.query) {
+    const query = opts.query.toLowerCase();
+    reports = reports.filter((r) =>
+      [r.title, r._vuln_info, r._impact, r.program, r.weakness]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
+  }
+
+  if (opts.sort) {
+    const fields = opts.sort
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => ({
+        descending: part.startsWith("-"),
+        field: part.replace(/^-/, "").replace(/^reports\./, ""),
+      }));
+
+    reports.sort((a: any, b: any) => {
+      for (const { descending, field } of fields) {
+        const av = a[field] ?? "";
+        const bv = b[field] ?? "";
+        if (av === bv) continue;
+        const comparison = av < bv ? -1 : 1;
+        return descending ? -comparison : comparison;
+      }
+      return 0;
+    });
+  }
+
+  if (needsLocalProcessing) {
+    const offset = (requestedPage - 1) * requestedSize;
+    reports = reports.slice(offset, offset + requestedSize);
+  }
+
+  return reports.map(({ _vuln_info, _impact, ...rest }) => rest);
+}
+
+function mapReportSummary(r: any) {
+  const attrs = r.attributes ?? {};
+  const relationships = r.relationships ?? {};
+  const bounty = relationships.bounties?.data?.[0]?.attributes;
+  const relationshipSeverity = relationships.severity?.data?.attributes?.rating;
+  return {
+    id: r.id,
+    title: attrs.title,
+    state: attrs.state,
+    substate: attrs.substate,
+    severity: attrs.severity_rating ?? relationshipSeverity ?? null,
+    created_at: attrs.created_at,
+    submitted_at: attrs.submitted_at ?? null,
+    disclosed_at: attrs.disclosed_at,
+    bounty_awarded_at: attrs.bounty_awarded_at,
+    bounty_amount: bounty?.amount ?? null,
+    bounty_bonus: bounty?.bonus_amount ?? null,
+    _vuln_info: attrs.vulnerability_information,
+    _impact: attrs.impact,
+    weakness: relationships.weakness?.data?.attributes?.name ?? null,
+    program: relationships.program?.data?.attributes?.handle ?? null,
+  };
 }
 
 export async function getReport(reportId: string) {
@@ -788,6 +856,7 @@ export async function submitReport(opts: {
   severity_rating?: "none" | "low" | "medium" | "high" | "critical";
   weakness_id?: number;
   structured_scope_id?: number;
+  attachment_ids?: number[];
 }) {
   const attributes: Record<string, any> = {
     team_handle: opts.program_handle,
@@ -800,6 +869,8 @@ export async function submitReport(opts: {
   if (opts.weakness_id !== undefined) attributes.weakness_id = opts.weakness_id;
   if (opts.structured_scope_id !== undefined)
     attributes.structured_scope_id = opts.structured_scope_id;
+  if (opts.attachment_ids?.length)
+    attributes.attachment_ids = opts.attachment_ids;
 
   const body = {
     data: {
@@ -981,7 +1052,15 @@ export async function hackerOneApiRequest(opts: {
     const form = new FormData();
     for (const [key, value] of Object.entries(opts.form_fields ?? {})) form.append(key, value);
     for (const file of opts.multipart_files ?? []) {
-      const bytes = Buffer.from(file.base64_data, "base64");
+      const encoded = file.base64_data;
+      if (
+        !encoded ||
+        encoded.length % 4 !== 0 ||
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)
+      ) throw new Error(`Invalid Base64 data for multipart file ${file.file_name}`);
+      const bytes = Buffer.from(encoded, "base64");
+      if (bytes.toString("base64") !== encoded)
+        throw new Error(`Non-canonical Base64 data for multipart file ${file.file_name}`);
       const blob = new Blob([bytes], { type: file.content_type || "application/octet-stream" });
       form.append(file.field_name || "files[]", blob, file.file_name);
     }
