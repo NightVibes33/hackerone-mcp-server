@@ -49,8 +49,8 @@ function zodFromSchema(input:any): z.ZodTypeAny {
         shape[k]=required.has(k)?child:child.optional();
       }
       out=z.object(shape);
-      if(s.additionalProperties===true) out=(out as z.ZodObject<any>).catchall(z.any());
-      else if(s.additionalProperties && typeof s.additionalProperties==="object") out=(out as z.ZodObject<any>).catchall(zodFromSchema(s.additionalProperties));
+      if(s.additionalProperties && typeof s.additionalProperties==="object") out=(out as z.ZodObject<any>).catchall(zodFromSchema(s.additionalProperties));
+      else if(s.additionalProperties!==false) out=(out as z.ZodObject<any>).passthrough();
       break;
     }
     case "string":
@@ -68,6 +68,9 @@ function zodFromSchema(input:any): z.ZodTypeAny {
   if(typeof s.maximum==="number" && out instanceof z.ZodNumber) out=out.max(s.maximum);
   if(typeof s.minLength==="number" && out instanceof z.ZodString) out=out.min(s.minLength);
   if(typeof s.maxLength==="number" && out instanceof z.ZodString) out=out.max(s.maxLength);
+  if(typeof s.pattern==="string" && out instanceof z.ZodString) out=out.regex(new RegExp(s.pattern));
+  if(typeof s.minItems==="number" && out instanceof z.ZodArray) out=out.min(s.minItems);
+  if(typeof s.maxItems==="number" && out instanceof z.ZodArray) out=out.max(s.maxItems);
   if(s.nullable) out=out.nullable();
   return out;
 }
