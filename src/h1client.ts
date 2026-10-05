@@ -75,7 +75,7 @@ async function h1Fetch(
       const res = await fetch(url.toString(), {
         headers: {
           Authorization: `Basic ${getAuth()}`,
-          Accept: "application/json",
+          Accept: opts.accept ?? "application/json",
         },
       });
 
@@ -959,6 +959,7 @@ export async function hackerOneApiRequest(opts: {
   body?: any;
   multipart_files?: Array<{ field_name?: string; file_name: string; content_type?: string; base64_data: string }>;
   form_fields?: Record<string, string>;
+  accept?: string;
 }) {
   const method = opts.method ?? "GET";
   if (!opts.path.startsWith("/") || opts.path.includes("://") || opts.path.includes("..")) {
@@ -1000,9 +1001,19 @@ export async function hackerOneApiRequest(opts: {
         ...(requestBody !== undefined ? { body: requestBody } : {}),
       });
 
-      const text = await res.text();
-      let payload: any = text;
-      try { payload = text ? JSON.parse(text) : {}; } catch {}
+      const responseContentType = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      let payload: any;
+      if (responseContentType.includes("json") || responseContentType.endsWith("+json") || responseContentType === "") {
+        const text = await res.text();
+        payload = text;
+        try { payload = text ? JSON.parse(text) : {}; } catch {}
+      } else {
+        const bytes = Buffer.from(await res.arrayBuffer());
+        payload = {
+          content_type: responseContentType || "application/octet-stream",
+          base64_data: bytes.toString("base64"),
+        };
+      }
 
       const rateLimit = {
         limit: res.headers.get("x-ratelimit-limit"),
