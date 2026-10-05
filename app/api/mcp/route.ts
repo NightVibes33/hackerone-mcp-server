@@ -107,7 +107,7 @@ registerH1Tool(server,
   {
     method: z.enum(["GET", "POST", "PATCH", "DELETE"]).optional(),
     path: z.string(),
-    query: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), z.number()]))])).optional(),
+    query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), z.number()]))])).optional(),
     body: z.any().optional(),
   },
   async (params) => {
