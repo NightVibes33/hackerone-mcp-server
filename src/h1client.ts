@@ -541,10 +541,7 @@ export async function getProgramWeaknesses(handle: string, pageSize?: number) {
 
 // ── Get program scope exclusions ───────────────────────────────────
 export async function getProgramScopeExclusions(handle: string) {
-  const data = await h1Fetch(
-    `/hackers/programs/${encodeURIComponent(handle)}/scope_exclusions`,
-    { "page[size]": "100", "page[number]": "1" }
-  );
+  const data = await h1Fetch(`/hackers/programs/${encodeURIComponent(handle)}/scope_exclusions`);
   return (data.data ?? []).map((item: any) => ({
     id: item.id,
     category: item.attributes?.category ?? null,
