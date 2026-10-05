@@ -68,6 +68,13 @@ for (const requiredSource of [
   if (!clientSource.includes(requiredSource)) throw new Error(`Hacker client regression guard missing: ${requiredSource}`);
 }
 
+if (!exactToolSource.includes('register("hacker_get_report_intents","GET /hackers/report_intents",{},')) {
+  throw new Error("Report Intents list must not expose undocumented pagination parameters");
+}
+if (!exactToolSource.includes('.min(1).optional()')) {
+  throw new Error("Report Intent files[] must remain optional as documented");
+}
+
 for (const [surface, sourceText] of [["client", clientSource], ["exact Hacker tools", exactToolSource], ["remote MCP", remoteSource], ["stdio MCP", stdioSource]]) {
   if (!sourceText.includes("attachment_ids")) {
     throw new Error(`Documented create-report attachment_ids missing from ${surface}`);
