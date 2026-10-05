@@ -1,0 +1,14 @@
+name: Full parity build check
+on:
+  push:
+    branches: [full-explicit-hackerone-api-2026-10-05]
+  pull_request:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install
+      - run: npm run build
+      - run: npm run build:cli

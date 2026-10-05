@@ -30,6 +30,7 @@ import {
   hackerOneApiRequest,
 } from "../../../src/h1client";
 import { runWithHackerOneCredentials } from "../../../src/request-auth";
+import { registerCustomerOpenApiTools } from "../../../src/customer-openapi-tools";
 import {
   resolveAccessToken,
   OAUTH_RESOURCE,
@@ -101,34 +102,15 @@ function registerH1Tool<T extends ToolShape>(
 const handler = createMcpHandler(
   (server) => {
 
-registerH1Tool(server,
-  "hackerone_api_request",
-  "Access a documented HackerOne API v1 resource beyond the dedicated convenience tools. The connected HackerOne account's normal permissions apply.",
-  {
-    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
-    path: z.string(),
-    query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.union([z.string(), z.number()]))])).optional(),
-    body: z.any().optional(),
-    multipart_files: z.array(z.object({
-      field_name: z.string().optional().describe("Multipart field name; defaults to files[]"),
-      file_name: z.string().min(1),
-      content_type: z.string().optional(),
-      base64_data: z.string().min(1),
-    })).optional().describe("Multipart uploads for documented file/attachment/import endpoints"),
-    form_fields: z.record(z.string(), z.string()).optional().describe("Additional multipart form fields"),
-  },
-  async (params) => {
+// ── Exact first-class Customer API operations from HackerOne OpenAPI ──
+registerCustomerOpenApiTools((name, description, shape, fn) => {
+  registerH1Tool(server, name, description, shape, async (params:any) => {
     try {
-      const result = await hackerOneApiRequest(params as any);
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        isError: result.ok === false,
-      };
-    } catch (err: any) {
-      return toolError(err);
-    }
-  }
-);
+      const result = await fn(params);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }], isError: result?.ok === false };
+    } catch (err:any) { return toolError(err); }
+  });
+});
 
 // ── Tool: search_reports ───────────────────────────────────────────
 registerH1Tool(server, 
@@ -724,22 +706,17 @@ registerH1Tool(server,
       .describe(
         "Full vulnerability details in markdown — steps to reproduce, root cause, and proof of concept"
       ),
-    impact: z
-      .string()
-      .optional()
-      .describe("Impact statement — what an attacker can achieve"),
+    impact: z.string().describe("Impact statement — what an attacker can achieve"),
     severity_rating: z
       .enum(["none", "low", "medium", "high", "critical"])
       .optional()
       .describe("Suggested severity rating"),
-    weakness_id: z
-      .string()
+    weakness_id: z.number().int()
       .optional()
       .describe(
         "Weakness/CWE ID from get_program_weaknesses (the numeric id field)"
       ),
-    structured_scope_id: z
-      .string()
+    structured_scope_id: z.number().int()
       .optional()
       .describe(
         "Scope asset ID from get_program_scope (the numeric id field)"

@@ -2,7 +2,7 @@
   "name": "hackerone-mcp-server",
   "version": "3.0.0",
   "private": true,
-  "description": "Remote and local MCP server for the HackerOne Hacker API",
+  "description": "Full-fidelity MCP server for the documented HackerOne Hacker API and Customer API",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -12,7 +12,9 @@
     "build": "next build",
     "dev": "next dev",
     "start": "next start",
-    "build:cli": "tsc -p tsconfig.cli.json"
+    "build:cli": "tsc -p tsconfig.cli.json",
+    "prebuild": "node scripts/generate-hackerone-openapi.mjs",
+    "prebuild:cli": "node scripts/generate-hackerone-openapi.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.1",

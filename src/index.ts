@@ -3,6 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { registerCustomerOpenApiTools } from "./customer-openapi-tools.js";
 import {
   searchReports,
   getReport,
@@ -38,38 +39,17 @@ const server = new McpServer({
   version: "3.0.0",
 });
 
-// ── Complete published HackerOne API v1 surface ──────────────────
-server.tool(
-  "hackerone_api_request",
-  "Call any documented HackerOne API v1 endpoint with the connected HackerOne credentials. Covers the complete Hacker API and Customer API beyond the dedicated convenience tools; HackerOne enforces account permissions.",
-  {
-    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
-    path: z.string().describe("Relative HackerOne v1 path beginning with /"),
-    query: z.record(z.string(), z.union([
-      z.string(), z.number(), z.boolean(),
-      z.array(z.union([z.string(), z.number()]))
-    ])).optional(),
-    body: z.any().optional(),
-    multipart_files: z.array(z.object({
-      field_name: z.string().optional().describe("Multipart field name; defaults to files[]"),
-      file_name: z.string().min(1),
-      content_type: z.string().optional(),
-      base64_data: z.string().min(1),
-    })).optional().describe("Multipart uploads for documented file/attachment/import endpoints"),
-    form_fields: z.record(z.string(), z.string()).optional().describe("Additional multipart form fields"),
-  },
-  async (params) => {
+// ── Exact first-class Customer API operations from HackerOne OpenAPI ──
+registerCustomerOpenApiTools((name, description, shape, fn) => {
+  server.tool(name, description, shape, async (params:any) => {
     try {
-      const result = await hackerOneApiRequest(params as any);
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        isError: result.ok === false,
-      };
-    } catch (err: any) {
+      const result = await fn(params);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }], isError: result?.ok === false };
+    } catch (err:any) {
       return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
     }
-  }
-);
+  });
+});
 
 // ── Tool: search_reports ───────────────────────────────────────────
 server.tool(
@@ -701,22 +681,17 @@ server.tool(
       .describe(
         "Full vulnerability details in markdown — steps to reproduce, root cause, and proof of concept"
       ),
-    impact: z
-      .string()
-      .optional()
-      .describe("Impact statement — what an attacker can achieve"),
+    impact: z.string().describe("Impact statement — what an attacker can achieve"),
     severity_rating: z
       .enum(["none", "low", "medium", "high", "critical"])
       .optional()
       .describe("Suggested severity rating"),
-    weakness_id: z
-      .string()
+    weakness_id: z.number().int()
       .optional()
       .describe(
         "Weakness/CWE ID from get_program_weaknesses (the numeric id field)"
       ),
-    structured_scope_id: z
-      .string()
+    structured_scope_id: z.number().int()
       .optional()
       .describe(
         "Scope asset ID from get_program_scope (the numeric id field)"
