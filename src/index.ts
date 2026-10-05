@@ -54,7 +54,10 @@ server.tool(
   async (params) => {
     try {
       const result = await hackerOneApiRequest(params as any);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        isError: result.ok === false,
+      };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
     }
