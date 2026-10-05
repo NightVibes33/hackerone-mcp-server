@@ -918,6 +918,7 @@ export async function submitReport(opts: {
   severity_rating?: "none" | "low" | "medium" | "high" | "critical";
   weakness_id?: number;
   structured_scope_id?: number;
+  attachment_ids?: number[];
 }) {
   const attributes: Record<string, any> = {
     team_handle: opts.program_handle,
@@ -930,6 +931,8 @@ export async function submitReport(opts: {
   if (opts.weakness_id !== undefined) attributes.weakness_id = opts.weakness_id;
   if (opts.structured_scope_id !== undefined)
     attributes.structured_scope_id = opts.structured_scope_id;
+  if (opts.attachment_ids?.length)
+    attributes.attachment_ids = opts.attachment_ids;
 
   const body = {
     data: {
