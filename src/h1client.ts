@@ -1131,7 +1131,7 @@ export async function searchDisclosedReports(opts: {
 }
 
 
-export type HackerOneApiMethod = "GET" | "POST" | "PATCH" | "DELETE";
+export type HackerOneApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /** Full-fidelity interface for every documented HackerOne API v1 resource. */
 export async function hackerOneApiRequest(opts: {
@@ -1139,6 +1139,8 @@ export async function hackerOneApiRequest(opts: {
   path: string;
   query?: Record<string, string | number | boolean | Array<string | number>>;
   body?: any;
+  multipart_files?: Array<{ field_name?: string; file_name: string; content_type?: string; base64_data: string }>;
+  form_fields?: Record<string, string>;
 }) {
   const method = opts.method ?? "GET";
   if (!opts.path.startsWith("/") || opts.path.includes("://") || opts.path.includes("..")) {
@@ -1152,6 +1154,21 @@ export async function hackerOneApiRequest(opts: {
     }
   }
 
+  let requestBody: any = opts.body !== undefined ? JSON.stringify(opts.body) : undefined;
+  let contentTypeHeader: string | undefined = opts.body !== undefined ? "application/json" : undefined;
+  if (opts.multipart_files?.length || Object.keys(opts.form_fields ?? {}).length) {
+    if (opts.body !== undefined) throw new Error("Use either body or multipart_files/form_fields, not both.");
+    const form = new FormData();
+    for (const [key, value] of Object.entries(opts.form_fields ?? {})) form.append(key, value);
+    for (const file of opts.multipart_files ?? []) {
+      const bytes = Buffer.from(file.base64_data, "base64");
+      const blob = new Blob([bytes], { type: file.content_type || "application/octet-stream" });
+      form.append(file.field_name || "files[]", blob, file.file_name);
+    }
+    requestBody = form as any;
+    contentTypeHeader = undefined; // node-fetch supplies multipart boundary.
+  }
+
   let lastNetworkError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -1160,9 +1177,9 @@ export async function hackerOneApiRequest(opts: {
         headers: {
           Authorization: `Basic ${getAuth()}`,
           Accept: "application/json",
-          ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(contentTypeHeader ? { "Content-Type": contentTypeHeader } : {}),
         },
-        ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+        ...(requestBody !== undefined ? { body: requestBody } : {}),
       });
 
       const text = await res.text();
