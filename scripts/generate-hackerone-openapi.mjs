@@ -17,6 +17,18 @@ if (operations !== 152) {
   throw new Error(`HackerOne Customer OpenAPI drift detected: expected 152 documented operations, received ${operations}. Review docs before deployment.`);
 }
 
+const requiredCanonicalOperations = [
+  ["post", "/reports/{id}/severities"],
+  ["post", "/reports/{id}/state_changes"],
+  ["post", "/reports/{id}/issue_tracker_reference_id"],
+  ["put", "/programs/{program_id}/swag/{id}"],
+];
+for (const [method, path] of requiredCanonicalOperations) {
+  if (!spec.paths?.[path]?.[method]) {
+    throw new Error(`HackerOne Customer API canonical operation missing from published OpenAPI: ${method.toUpperCase()} ${path}`);
+  }
+}
+
 const source = `// GENERATED from HackerOne's published Customer OpenAPI 3.x document.
 // Source: ${SPEC_URL}
 // Do not hand-edit. npm build refreshes and validates the operation count.
