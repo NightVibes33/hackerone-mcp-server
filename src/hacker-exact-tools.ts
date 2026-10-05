@@ -28,6 +28,7 @@ export function registerHackerExactTools(register:Register){
         severity_rating:z.enum(["none","low","medium","high","critical"]).optional(),
         weakness_id:z.number().int().optional(),
         structured_scope_id:z.number().int().optional(),
+        attachment_ids:z.array(z.number().int()).optional(),
       }),
     }),
   },p=>call("POST","/hackers/reports",undefined,{data:p.data}));
