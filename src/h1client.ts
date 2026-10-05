@@ -960,6 +960,7 @@ export async function hackerOneApiRequest(opts: {
   multipart_files?: Array<{ field_name?: string; file_name: string; content_type?: string; base64_data: string }>;
   form_fields?: Record<string, string>;
   accept?: string;
+  content_type?: string;
 }) {
   const method = opts.method ?? "GET";
   if (!opts.path.startsWith("/") || opts.path.includes("://") || opts.path.includes("..")) {
@@ -974,7 +975,7 @@ export async function hackerOneApiRequest(opts: {
   }
 
   let requestBody: any = opts.body !== undefined ? JSON.stringify(opts.body) : undefined;
-  let contentTypeHeader: string | undefined = opts.body !== undefined ? "application/json" : undefined;
+  let contentTypeHeader: string | undefined = opts.body !== undefined ? (opts.content_type ?? "application/json") : undefined;
   if (opts.multipart_files?.length || Object.keys(opts.form_fields ?? {}).length) {
     if (opts.body !== undefined) throw new Error("Use either body or multipart_files/form_fields, not both.");
     const form = new FormData();
