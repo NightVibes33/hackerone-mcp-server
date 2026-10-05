@@ -28,7 +28,7 @@ function cacheSet(key: string, data: any): void {
 
 function cacheInvalidatePrefix(prefix: string): void {
   for (const key of cache.keys()) {
-    if (key.startsWith(prefix)) cache.delete(key);
+    if (key.includes(prefix)) cache.delete(key);
   }
 }
 
@@ -58,7 +58,9 @@ async function h1Fetch(
     }
   }
 
-  const cacheKey = url.toString();
+  // Remote MCP requests can carry different HackerOne credentials in one
+  // process, so never share authenticated GET cache entries across accounts.
+  const cacheKey = `${getAuth()}::${url.toString()}`;
   if (!options?.skipCache) {
     const cached = cacheGet(cacheKey);
     if (cached) return cached;
@@ -1117,4 +1119,52 @@ export async function searchDisclosedReports(opts: {
   }
 
   return matches;
+}
+
+
+export type HackerOneApiMethod = "GET" | "POST" | "PATCH" | "DELETE";
+
+/** Full-fidelity interface for every documented HackerOne API v1 resource. */
+export async function hackerOneApiRequest(opts: {
+  method?: HackerOneApiMethod;
+  path: string;
+  query?: Record<string, string | number | boolean | Array<string | number>>;
+  body?: any;
+}) {
+  const method = opts.method ?? "GET";
+  if (!opts.path.startsWith("/") || opts.path.includes("://") || opts.path.includes("..")) {
+    throw new Error("path must be a relative HackerOne v1 API path beginning with /");
+  }
+  const url = new URL(`${H1_BASE}${opts.path}`);
+  for (const [key, raw] of Object.entries(opts.query ?? {})) {
+    for (const value of (Array.isArray(raw) ? raw : [raw])) {
+      url.searchParams.append(key, String(value));
+    }
+  }
+  const res = await fetch(url.toString(), {
+    method,
+    headers: {
+      Authorization: `Basic ${getAuth()}`,
+      Accept: "application/json",
+      ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+  });
+  const text = await res.text();
+  let payload: any = text;
+  try { payload = text ? JSON.parse(text) : {}; } catch {}
+  if (!res.ok) throw new Error(
+    `HackerOne API error ${res.status}: ${typeof payload === "string" ? payload : JSON.stringify(payload)}`
+  );
+  if (method !== "GET") cache.clear();
+  return {
+    status: res.status,
+    data: payload,
+    rate_limit: {
+      limit: res.headers.get("x-ratelimit-limit"),
+      remaining: res.headers.get("x-ratelimit-remaining"),
+      reset: res.headers.get("x-ratelimit-reset"),
+      retry_after: res.headers.get("retry-after"),
+    },
+  };
 }
