@@ -28,6 +28,7 @@ import {
 } from "../../../src/h1client";
 import { runWithHackerOneCredentials } from "../../../src/request-auth";
 import { registerCustomerOpenApiTools } from "../../../src/customer-openapi-tools";
+import { registerHackerExactTools } from "../../../src/hacker-exact-tools";
 import {
   resolveAccessToken,
   OAUTH_RESOURCE,
@@ -98,6 +99,16 @@ function registerH1Tool<T extends ToolShape>(
 
 const handler = createMcpHandler(
   (server) => {
+
+// ── Exact first-class Hacker API operations from HackerOne Hacker Resources ──
+registerHackerExactTools((name, description, shape, fn) => {
+  registerH1Tool(server, name, description, shape, async (params:any) => {
+    try {
+      const result = await fn(params);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }], isError: result?.ok === false };
+    } catch (err:any) { return toolError(err); }
+  });
+});
 
 // ── Exact first-class Customer API operations from HackerOne OpenAPI ──
 registerCustomerOpenApiTools((name, description, shape, fn) => {
