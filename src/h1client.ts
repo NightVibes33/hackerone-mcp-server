@@ -306,7 +306,7 @@ export async function searchReports(opts: SearchReportsOpts = {}) {
     if (items.length < (needsLocalFilter ? 100 : requestedSize)) break;
   }
 
-  return matches.map(mapReport);
+  return matches;
 }
 
 export async function getReport(reportId: string) {
