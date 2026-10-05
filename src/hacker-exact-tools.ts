@@ -57,11 +57,11 @@ export function registerHackerExactTools(register:Register){
   register("hacker_get_report_intent_attachments","GET /hackers/report_intents/{report_intent_id}/attachments",{report_intent_id:z.number().int()},p=>call("GET",`/hackers/report_intents/${p.report_intent_id}/attachments`));
   register("hacker_upload_report_intent_attachments","POST /hackers/report_intents/{report_intent_id}/attachments",{
     report_intent_id:z.number().int(),
-    "files[]":z.array(z.object({file_name:z.string().min(1),content_type:z.string().optional(),base64_data:z.string().min(1)})).min(1),
-  },p=>call("POST",`/hackers/report_intents/${p.report_intent_id}/attachments`,undefined,undefined,p["files[]"].map((f:any)=>({...f,field_name:"files[]"}))));
+    "files[]":z.array(z.object({file_name:z.string().min(1),content_type:z.string().optional(),base64_data:z.string().min(1)})).min(1).optional(),
+  },p=>call("POST",`/hackers/report_intents/${p.report_intent_id}/attachments`,undefined,undefined,(p["files[]"]??[]).map((f:any)=>({...f,field_name:"files[]"}))));
   register("hacker_delete_report_intent_attachment","DELETE /hackers/report_intents/{report_intent_id}/attachments/{id}",{report_intent_id:z.number().int(),id:z.number().int()},p=>call("DELETE",`/hackers/report_intents/${p.report_intent_id}/attachments/${p.id}`));
 
-  register("hacker_get_report_intents","GET /hackers/report_intents",page,p=>call("GET","/hackers/report_intents",queryOf(p)));
+  register("hacker_get_report_intents","GET /hackers/report_intents",{},()=>call("GET","/hackers/report_intents"));
   register("hacker_create_report_intent","POST /hackers/report_intents",{
     data:z.object({type:z.literal("report-intent"),attributes:z.object({team_handle:z.string(),description:z.string()})}),
   },p=>call("POST","/hackers/report_intents",undefined,{data:p.data}));
