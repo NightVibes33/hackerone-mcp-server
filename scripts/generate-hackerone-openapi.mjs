@@ -17,6 +17,32 @@ if (operations !== 152) {
   throw new Error(`HackerOne Customer OpenAPI drift detected: expected 152 documented operations, received ${operations}. Review docs before deployment.`);
 }
 
+const requiredOperations = [
+  ["post", "/reports/{id}/severities"],
+  ["post", "/reports/{id}/state_changes"],
+  ["post", "/reports/{id}/issue_tracker_reference_id"],
+  ["put", "/programs/{program_id}/swag/{id}"],
+];
+for (const [method, path] of requiredOperations) {
+  if (!spec.paths?.[path]?.[method]) {
+    throw new Error(`Official Customer OpenAPI is missing required documented operation ${method.toUpperCase()} ${path}`);
+  }
+}
+
+const toolName = (method, path) => {
+  const slug = path.replace(/[{}]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "").toLowerCase();
+  return `customer_${method}_${slug}`.slice(0, 120);
+};
+const generatedNames = [];
+for (const [path, item] of Object.entries(spec.paths || {})) {
+  for (const method of methods) {
+    if (item?.[method]) generatedNames.push(toolName(method, path));
+  }
+}
+if (new Set(generatedNames).size !== generatedNames.length) {
+  throw new Error("Customer OpenAPI tool-name collision detected; refusing to deploy ambiguous first-class tools.");
+}
+
 const source = `// GENERATED from HackerOne's published Customer OpenAPI 3.x document.
 // Source: ${SPEC_URL}
 // Do not hand-edit. npm build refreshes and validates the operation count.
