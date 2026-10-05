@@ -17,6 +17,11 @@ if (operations !== 152) {
   throw new Error(`HackerOne Customer OpenAPI drift detected: expected 152 documented operations, received ${operations}. Review docs before deployment.`);
 }
 
+const resolveRef = (value) => {
+  if (!value?.$ref) return value;
+  return value.$ref.replace(/^#\//, "").split("/").reduce((cur, key) => cur?.[key], spec);
+};
+
 const requiredOperations = [
   ["post", "/reports/{id}/severities"],
   ["post", "/reports/{id}/state_changes"],
@@ -49,18 +54,17 @@ for (const [path, item] of Object.entries(spec.paths || {})) {
     if (!op) continue;
     const parameters = [...(item.parameters || []), ...(op.parameters || [])];
     for (const parameter of parameters) {
-      const resolved = parameter?.$ref
-        ? parameter.$ref.replace(/^#\//, "").split("/").reduce((cur, key) => cur?.[key], spec)
-        : parameter;
+      const resolved = resolveRef(parameter);
       if (resolved?.in && !["path", "query"].includes(resolved.in)) {
         throw new Error(`Unsupported documented parameter location ${resolved.in} at ${method.toUpperCase()} ${path}`);
       }
     }
-    const requestTypes = Object.keys(op.requestBody?.content || {});
+    const requestBody = resolveRef(op.requestBody);
+    const requestTypes = Object.keys(requestBody?.content || {});
     if (requestTypes.length > 1) {
       throw new Error(`Multiple documented request media types require explicit modeling at ${method.toUpperCase()} ${path}: ${requestTypes.join(", ")}`);
     }
-    const success = Object.entries(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1];
+    const success = resolveRef(Object.entries(op.responses || {}).find(([status]) => /^2\d\d$/.test(status))?.[1]);
     const responseTypes = Object.keys(success?.content || {});
     if (responseTypes.length > 1) {
       throw new Error(`Multiple documented success media types require explicit modeling at ${method.toUpperCase()} ${path}: ${responseTypes.join(", ")}`);
