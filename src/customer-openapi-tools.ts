@@ -164,6 +164,26 @@ function resolveParameter(p:any){
   return cur||p;
 }
 
+function addQueryValue(query:Record<string,any>, key:string, value:any) {
+  if (query[key] === undefined) query[key] = value;
+  else if (Array.isArray(query[key])) query[key].push(value);
+  else query[key] = [query[key], value];
+}
+
+function serializeDocumentedQuery(query:Record<string,any>, name:string, value:any) {
+  if (name === "filter[custom_fields][]" && Array.isArray(value)) {
+    for (const criterion of value) {
+      if (!criterion || typeof criterion !== "object" || Array.isArray(criterion))
+        throw new Error("filter[custom_fields][] entries must be objects");
+      for (const [field, fieldValue] of Object.entries(criterion)) {
+        if (fieldValue !== undefined) addQueryValue(query, `${name}[${field}]`, fieldValue);
+      }
+    }
+    return;
+  }
+  query[name] = value;
+}
+
 export function registerCustomerOpenApiTools(register:Register){
   let count=0;
   const usedToolNames=new Map<string,string>();
@@ -218,7 +238,7 @@ export function registerCustomerOpenApiTools(register:Register){
           if(p.in==="path"){
             if(input[p.name]===undefined) throw new Error(`Missing required path parameter ${p.name}`);
             resolvedPath=resolvedPath.replace(`{${p.name}}`,encodeURIComponent(String(input[p.name])));
-          } else if(p.in==="query" && input[p.name]!==undefined) query[p.name]=input[p.name];
+          } else if(p.in==="query" && input[p.name]!==undefined) serializeDocumentedQuery(query,p.name,input[p.name]);
         }
         let body:any=undefined;
         if(bodySchema){
