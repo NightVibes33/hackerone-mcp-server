@@ -160,7 +160,7 @@ export function registerCustomerOpenApiTools(register:Register){
           }
           return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,multipart_files:files,form_fields:formFields,accept});
         }
-        return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,body,accept});
+        return hackerOneApiRequest({method:method.toUpperCase() as any,path:resolvedPath,query,body,accept,content_type:contentType});
       });
     }
   }
